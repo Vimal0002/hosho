@@ -4,7 +4,7 @@
       "id": "TV001",
       "name": "Sony Bravia 55\" 4K TV",
       "price": 600,
-      "stock": 10,
+      "stock": 5,
       "category": "Televisions"
     },
     {
@@ -95,14 +95,14 @@
       "id": "AC002",
       "name": "Voltas Split AC 1 Ton",
       "price": 400,
-      "stock": 60,
+      "stock": 59,
       "category": "Home Appliances"
     },
     {
       "id": "PH001",
       "name": "iPhone 15",
       "price": 999,
-      "stock": 150,
+      "stock": 135,
       "category": "Mobile Phones"
     },
     {
@@ -179,7 +179,7 @@
       "id": "LP005",
       "name": "ASUS ROG Gaming Laptop",
       "price": 1500,
-      "stock": 40,
+      "stock": 39,
       "category": "Laptops"
     },
     {
@@ -446,6 +446,134 @@
         }
       ],
       "address": "card",
+      "customerName": "Guest User",
+      "paymentMethod": "Cash on Delivery"
+    },
+    {
+      "id": "ORD1769260213957",
+      "date": "2026-01-24T13:10:13.957Z",
+      "status": "Confirmed",
+      "email": "rp0366685@gmail.com",
+      "total": 400,
+      "items": [
+        {
+          "id": "AC002",
+          "quantity": 1
+        }
+      ],
+      "address": "cash",
+      "customerName": "Guest User",
+      "paymentMethod": "Cash on Delivery"
+    },
+    {
+      "id": "ORD1769260625908",
+      "date": "2026-01-24T13:17:05.908Z",
+      "status": "Confirmed",
+      "email": "rp0366685@gmail.com",
+      "total": 600,
+      "items": [
+        {
+          "id": "TV001",
+          "quantity": 1
+        }
+      ],
+      "address": "cash",
+      "customerName": "Guest User",
+      "paymentMethod": "Cash on Delivery"
+    },
+    {
+      "id": "ORD1769261615741",
+      "date": "2026-01-24T13:33:35.741Z",
+      "status": "Confirmed",
+      "email": "hpotpose26@gmail.com",
+      "total": 600,
+      "items": [
+        {
+          "id": "TV001",
+          "quantity": 1
+        }
+      ],
+      "address": "jabalpur",
+      "customerName": "Guest User",
+      "paymentMethod": "Cash on Delivery"
+    },
+    {
+      "id": "ORD1769262238513",
+      "date": "2026-01-24T13:43:58.513Z",
+      "status": "Confirmed",
+      "email": "hpotpose62@gmail.com",
+      "total": 1500,
+      "items": [
+        {
+          "id": "LP005",
+          "quantity": 1
+        }
+      ],
+      "address": "nagpur",
+      "customerName": "Guest User",
+      "paymentMethod": "Cash on Delivery"
+    },
+    {
+      "id": "ORD1769262412869",
+      "date": "2026-01-24T13:46:52.869Z",
+      "status": "Confirmed",
+      "email": "hpotpose62@gmail.com",
+      "total": 14985,
+      "items": [
+        {
+          "id": "PH001",
+          "quantity": 15
+        }
+      ],
+      "address": "nagpur",
+      "customerName": "Guest User",
+      "paymentMethod": "Cash on Delivery"
+    },
+    {
+      "id": "ORD1769262620902",
+      "date": "2026-01-24T13:50:20.902Z",
+      "status": "Confirmed",
+      "email": "hpotpose26@gmail.com",
+      "total": 600,
+      "items": [
+        {
+          "id": "TV001",
+          "quantity": 1
+        }
+      ],
+      "address": "nagpur",
+      "customerName": "Guest User",
+      "paymentMethod": "Cash on Delivery"
+    },
+    {
+      "id": "ORD1769262927056",
+      "date": "2026-01-24T13:55:27.056Z",
+      "status": "Confirmed",
+      "email": "rp0366685@gmail.com",
+      "total": 600,
+      "items": [
+        {
+          "id": "TV001",
+          "quantity": 1
+        }
+      ],
+      "address": "ranjhi  hpotpose62",
+      "customerName": "Guest User",
+      "paymentMethod": "Cash on Delivery"
+    },
+    {
+      "id": "ORD1769262989712",
+      "date": "2026-01-24T13:56:29.712Z",
+      "status": "Confirmed",
+      "email": "hpotpose62@gmail.com",
+      "total": 600,
+      "items": [
+        {
+          "id": "TV001",
+          "quantity": 1
+        }
+      ],
+      "address": "jablapur",
       "customerName": "Guest User",
       "paymentMethod": "Cash on Delivery"
     }

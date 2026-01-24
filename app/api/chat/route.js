@@ -63,11 +63,15 @@ const tools = {
     }
 };
 
-const toolDefinitions = Object.keys(tools).map(name => ({
-    name: name,
-    description: tools[name].description,
-    parameters: tools[name].parameters
-}));
+const toolDefinitions = [
+    {
+        functionDeclarations: Object.keys(tools).map(name => ({
+            name: name,
+            description: tools[name].description,
+            parameters: tools[name].parameters
+        }))
+    }
+];
 
 // Smart Local Intent Engine (Hybrid Mode)
 async function processLocalIntent(lastUserMessage, history = []) {
@@ -143,12 +147,20 @@ async function processLocalIntent(lastUserMessage, history = []) {
             }
 
             // Check for ORDER confirmation
-            const pendingOrderMatch = text.match(/\*\*Confirm Order\*\*\nInventory ID: (.*)\nQuantity: (\d+)\nAddress: (.*)\nPayment: (.*)/);
+            const pendingOrderMatch = text.match(/\*\*Confirm Order\*\*\nInventory ID: (.*)\nQuantity: (\d+)\nAddress: (.*)\nPayment: (.*)\nEmail: (.*)/);
+            // Fallback for old format without email
+            const pendingOrderMatchOld = text.match(/\*\*Confirm Order\*\*\nInventory ID: (.*)\nQuantity: (\d+)\nAddress: (.*)\nPayment: (.*)/);
 
-            if (pendingOrderMatch) {
-                const [_, itemId, qtyStr, address, paymentRaw] = pendingOrderMatch;
-                const paymentMethod = paymentRaw ? paymentRaw.split('\n')[0].trim() : "Cash on Delivery";
-                const quantity = parseInt(qtyStr);
+            const match = pendingOrderMatch || pendingOrderMatchOld;
+
+            if (match) {
+                const itemId = match[1].trim();
+                const quantity = parseInt(match[2]);
+                const address = match[3].trim();
+                const paymentMethod = match[4].trim();
+
+                // If new format with email exists, use it. Else fallback.
+                const userEmail = (pendingOrderMatch && match[5]) ? match[5].trim() : (process.env.EMAIL_USER || "rp0366685@gmail.com");
 
                 try {
                     const finalCheck = inventory.find(i => i.id === itemId);
@@ -158,17 +170,18 @@ async function processLocalIntent(lastUserMessage, history = []) {
 
                     const order = createOrder({
                         items: [{ id: itemId.trim(), quantity: quantity }],
-                        address: address.trim(),
+                        address: address,
                         customerName: "Guest User",
                         paymentMethod: paymentMethod,
-                        email: "rp0366685@gmail.com",
+                        email: userEmail,
                         total: (finalCheck.price * quantity)
                     });
 
-                    const recipient = process.env.EMAIL_USER || "rp0366685@gmail.com";
-                    await sendOrderEmail(recipient, order);
+                    // Send email to the BUYER (userEmail)
+                    console.log(`[Order Confirmed] Sending email to: ${userEmail}`);
+                    await sendOrderEmail(userEmail, order);
 
-                    return `🎉 **Woohoo! Order Placed!** 🛍️\n\nOrder ID: **${order.id}**\nTotal: $${order.total}\n\nI've sent the receipt to your email. Thanks for shopping! ✨`;
+                    return `🎉 **Woohoo! Order Placed!** 🛍️\n\nOrder ID: **${order.id}**\nTotal: $${order.total}\n\nI've sent the receipt to **${userEmail}**. Thanks for shopping! ✨`;
 
                 } catch (e) {
                     return `❌ Order failed: ${e.message}. Try again?`;
@@ -320,9 +333,16 @@ async function processLocalIntent(lastUserMessage, history = []) {
         const lastModelMsg = history.slice().reverse().find(h => h.role === "model");
         if (lastModelMsg && lastModelMsg.parts && lastModelMsg.parts[0].text) {
             const lastText = lastModelMsg.parts[0].text;
-            if (lastText.includes("tell me where to ship") || lastText.includes("how you'd like to pay")) {
-                // Formatting is: "**2 x iPhone 15**" or similar
+
+            // CHECK FOR BOTH OLD AND NEW PROMPT PHRASES
+            const isPrompt = lastText.includes("tell me where to ship") ||
+                lastText.includes("how you'd like to pay") ||
+                lastText.includes("To complete your order, please provide");
+
+            if (isPrompt) {
+                // Formatting is: "**2 x iPhone 15**" or similar or "You want **1 x Sony TV**"
                 const productMatch = lastText.match(/\*\*(\d+) x (.*?)\*\*/);
+
                 if (productMatch) {
                     const recoveredQty = parseInt(productMatch[1]);
                     const recoveredName = productMatch[2];
@@ -331,8 +351,14 @@ async function processLocalIntent(lastUserMessage, history = []) {
                     if (found) {
                         // FORCE BUY FLOW with recovered details
                         // We set 'isBuying' to true effectively by handling it here
-                        const address = msg; // Assume the whole message is details
-                        const total = found.price * recoveredQty;
+
+                        // Check for Address & Payment & Email in the message
+                        const hasEmail = msg.includes("@") && msg.includes(".");
+                        const hasPayment = msg.includes("upi") || msg.includes("card") || msg.includes("cash") || msg.includes("pay");
+
+                        // Extract Email
+                        const emailMatch = msg.match(/[\w.-]+@[\w.-]+\.\w+/);
+                        const userEmail = emailMatch ? emailMatch[0] : "rp0366685@gmail.com";
 
                         let paymentMethod = "Cash on Delivery";
                         if (msg.includes("upi")) paymentMethod = "UPI";
@@ -341,7 +367,20 @@ async function processLocalIntent(lastUserMessage, history = []) {
                         else if (msg.includes("net")) paymentMethod = "Net Banking";
                         else if (msg.includes("cash")) paymentMethod = "Cash on Delivery";
 
-                        return `## 🛒 **Ready to Order**\n\nGetting ${recoveredQty} x ${found.name}\nUnit Price: $${found.price}\n**Total: $${total}**\n\nShipping to: ${address}\nPayment: ${paymentMethod}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Order**\nInventory ID: ${found.id}\nQuantity: ${recoveredQty}\nAddress: ${address}\nPayment: ${paymentMethod}\n-->`;
+                        // Address Logic (Same as main block)
+                        let address = "Provided Address";
+                        const cleanMsg = msg.replace(userEmail, "").replace(/upi|credit|debit|card|cash|net banking/gi, "").trim();
+
+                        const addrIndex = msg.indexOf("address");
+                        if (addrIndex !== -1) {
+                            address = msg.substring(addrIndex + 7).split(/,|payment|via|email/)[0].trim().replace(/^[:\s]+/, '');
+                        } else {
+                            if (cleanMsg.length > 2) address = cleanMsg.replace(/[,.]/g, " ").trim();
+                        }
+
+                        const total = found.price * recoveredQty;
+
+                        return `## 🛒 **Ready to Order**\n\nGetting ${recoveredQty} x ${found.name}\nUnit Price: $${found.price}\n**Total: $${total}**\n\nShipping to: ${address}\nEmail: **${userEmail}**\nPayment: ${paymentMethod}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Order**\nInventory ID: ${found.id}\nQuantity: ${recoveredQty}\nAddress: ${address}\nPayment: ${paymentMethod}\nEmail: ${userEmail}\n-->`;
                     }
                 }
             }
@@ -371,18 +410,73 @@ async function processLocalIntent(lastUserMessage, history = []) {
         }
     }
 
+    // 2.7. ORDER CORRECTION (User corrects details instead of saying "yes")
+    const lastModelMsg = history.slice().reverse().find(h => h.role === "model");
+    if (lastModelMsg && lastModelMsg.parts && lastModelMsg.parts[0].text) {
+        const lastText = lastModelMsg.parts[0].text;
+
+        // If last message was a Confirmation Request
+        const pendingOrderMatch = lastText.match(/\*\*Confirm Order\*\*\nInventory ID: (.*)\nQuantity: (\d+)\nAddress: (.*)\nPayment: (.*)\nEmail: (.*)/);
+
+        if (pendingOrderMatch) {
+            // User is replying to a confirmation... usually "yes", but maybe correcting details?
+            const [_, oldId, oldQty, oldAddr, oldPay, oldEmail] = pendingOrderMatch;
+
+            // Check if user provided new details
+            const newEmailMatch = msg.match(/[\w.-]+@[\w.-]+\.\w+/);
+            const newQtyMatch = msg.match(/^(\d+)$/);
+            const hasNewPayment = msg.includes("upi") || msg.includes("card") || msg.includes("cash");
+
+            if (newEmailMatch || newQtyMatch || hasNewPayment || (msg.length > 5 && !msg.includes("yes"))) {
+
+                // UPDATE THE ORDER
+                const updatedId = oldId.trim(); // Assume same product/qty unless explicit change
+                const updatedQty = newQtyMatch ? parseInt(newQtyMatch[1]) : parseInt(oldQty);
+                const updatedEmail = newEmailMatch ? newEmailMatch[0] : oldEmail.trim();
+                let updatedPayment = oldPay.trim();
+
+                if (msg.includes("upi")) updatedPayment = "UPI";
+                else if (msg.includes("credit")) updatedPayment = "Credit Card";
+                else if (msg.includes("cash")) updatedPayment = "Cash on Delivery";
+
+                // If not just "yes", treat as correction
+                if (!msg.toLowerCase().includes("yes")) {
+                    const product = inventory.find(i => i.id === updatedId);
+                    if (product) {
+                        const total = product.price * updatedQty;
+
+                        // Use old address if no new one obvious, or just use whole msg if it looks like addr?
+                        // For safety, keep old address unless explicit.
+                        let updatedAddress = oldAddr.trim();
+                        if (msg.length > 5 && !hasNewPayment && !newEmailMatch) updatedAddress = msg; // Assume correction is address
+
+                        return `## 🛒 **Updated Order**\n\nGetting ${updatedQty} x ${product.name}\nUnit Price: $${product.price}\n**Total: $${total}**\n\nShipping to: ${updatedAddress}\nEmail: **${updatedEmail}**\nPayment: ${updatedPayment}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Order**\nInventory ID: ${updatedId}\nQuantity: ${updatedQty}\nAddress: ${updatedAddress}\nPayment: ${updatedPayment}\nEmail: ${updatedEmail}\n-->`;
+                    }
+                }
+            }
+        }
+    }
+
     // A. "Buy 23" Logic (Contextual Buy)
     // If we know the product (finalProduct) and user wants to buy...
     if (finalProduct && isBuying) {
 
-        // Check for Address & Payment in the message
-        const hasAddress = msg.includes("address") || msg.includes("deliver") || msg.includes("live at") || msg.includes("shipping") || msg.match(/at\s+\d+/);
+        // Check for Address & Payment & Email in the message
+
+        // Check for Address & Payment & Email in the message
+        const hasEmail = msg.includes("@") && msg.includes(".");
         const hasPayment = msg.includes("upi") || msg.includes("card") || msg.includes("cash") || msg.includes("pay");
 
-        // If MISSING details, ask simply!
-        if (!hasAddress || !hasPayment) {
+        // Heuristic: If we have payment AND email, assume the rest is address if reasonably long enough
+        // OR search for explicit address keywords
+        const isAddressExplicit = msg.includes("address") || msg.includes("deliver") || msg.includes("live at") || msg.includes("shipping") || msg.match(/at\s+\d+/);
+        const hasAddress = isAddressExplicit || (hasEmail && hasPayment && msg.length > 10);
+
+        // If MISSING key details, ask simply!
+        // We only block if we are really unsure. If we have email + payment, we proceed and try to extract address.
+        if ((!hasPayment || !hasEmail) && !hasAddress) { // Only block if address is also missing/unknown
             const total = finalProduct.price * quantity;
-            return `You want **${quantity} x ${finalProduct.name}**? Great choice! ✨\n\nUnit Price: $${finalProduct.price}\nTotal: **$${total}**.\n\nJust tell me where to ship it and how you'd like to pay (Cash or Card)?`;
+            return `You want **${quantity} x ${finalProduct.name}**? Great choice! ✨\n\nUnit Price: $${finalProduct.price}\nTotal: **$${total}**.\n\nTo complete your order, please provide:\n1. **Shipping Address**\n2. **Email Address** (for the receipt)\n3. **Payment Method** (Cash/Card/UPI)`;
         }
 
         // If WE HAVE DETAILS, draft the order!
@@ -391,23 +485,30 @@ async function processLocalIntent(lastUserMessage, history = []) {
         else if (msg.includes("credit")) paymentMethod = "Credit Card";
         else if (msg.includes("debit")) paymentMethod = "Debit Card";
         else if (msg.includes("net")) paymentMethod = "Net Banking";
+        else if (msg.includes("cash")) paymentMethod = "Cash on Delivery";
+
+        // Extract Email
+        const emailMatch = msg.match(/[\w.-]+@[\w.-]+\.\w+/);
+        const userEmail = emailMatch ? emailMatch[0] : "rp0366685@gmail.com";
 
         // Simple address extraction
         let address = "Provided Address";
+
+        // Remove known entities to isolate address
+        const cleanMsg = msg.replace(userEmail, "").replace(/upi|credit|debit|card|cash|net banking/gi, "").trim();
+
         const addrIndex = msg.indexOf("address");
         if (addrIndex !== -1) {
-            address = msg.substring(addrIndex + 7).split(/,|payment|via/)[0].trim().replace(/^[:\s]+/, '');
+            address = msg.substring(addrIndex + 7).split(/,|payment|via|email/)[0].trim().replace(/^[:\s]+/, '');
         } else {
-            // Try to grab address from end if no label
-            // This is simplified; assumes address is the long string part
-            const parts = msg.split(/,|and/);
-            const addrPart = parts.find(p => p.length > 10 && !p.includes("buy") && !p.includes("pay"));
-            if (addrPart) address = addrPart.trim();
+            // Simplified Fallback
+            // If the cleaned message is long enough (even short city like "city"), assume it's the address
+            if (cleanMsg.length > 2) address = cleanMsg.replace(/[,.]/g, " ").trim();
         }
 
         const total = (finalProduct.price * quantity);
 
-        return `## 🛒 **Ready to Order**\n\nGetting ${quantity} x ${finalProduct.name}\nUnit Price: $${finalProduct.price}\n**Total: $${total}**\n\nShipping to: ${address}\nPayment: ${paymentMethod}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Order**\nInventory ID: ${finalProduct.id}\nQuantity: ${quantity}\nAddress: ${address}\nPayment: ${paymentMethod}\n-->`;
+        return `## 🛒 **Ready to Order**\n\nGetting ${quantity} x ${finalProduct.name}\nUnit Price: $${finalProduct.price}\n**Total: $${total}**\n\nShipping to: ${address}\nEmail: ${userEmail}\nPayment: ${paymentMethod}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Order**\nInventory ID: ${finalProduct.id}\nQuantity: ${quantity}\nAddress: ${address}\nPayment: ${paymentMethod}\nEmail: ${userEmail}\n-->`;
     }
 
     // B. Just Showing Product Info
