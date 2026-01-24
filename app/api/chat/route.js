@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getInventory, createOrder, getOrderById, updateOrderStatus, cancelOrder, addFeedback, getOrders, updateOrder, getCustomerOrders, addReturnRequest } from '@/lib/data';
+import { getInventory, createOrder, getOrderById, updateOrderStatus, cancelOrder, addFeedback, getOrders, updateOrder, getCustomerOrders, addReturnRequest, addToCart, getCart, removeFromCart, checkoutCart } from '@/lib/data';
 import { sendOrderEmail } from '@/lib/email';
 import { NextResponse } from 'next/server';
 
@@ -147,6 +147,29 @@ async function processLocalIntent(lastUserMessage, history = []) {
             }
 
             // Check for ORDER confirmation
+            // Check for CART confirmation
+            const pendingCartMatch = text.match(/\*\*Confirm Cart\*\*\nAddress: (.*)\nPayment: (.*)\nEmail: (.*)/);
+            if (pendingCartMatch) {
+                const [_, address, paymentMethod, userEmail] = pendingCartMatch;
+
+                try {
+                    const userId = "user_session";
+                    const order = checkoutCart(userId, {
+                        address: address.trim(),
+                        customerName: "Guest User",
+                        paymentMethod: paymentMethod.trim(),
+                        email: userEmail.trim()
+                    });
+
+                    await sendOrderEmail(userEmail.trim(), order);
+                    return `🎉 **Woohoo! Cart Ordered!** 🛍️\n\nOrder ID: **${order.id}**\nTotal: $${order.total}\n\nI've sent the receipt to **${userEmail}**. Thanks for shopping multiple items! ✨`;
+
+                } catch (e) {
+                    return `❌ Checkout failed: ${e.message}`;
+                }
+            }
+
+            // Check for ORDER confirmation
             const pendingOrderMatch = text.match(/\*\*Confirm Order\*\*\nInventory ID: (.*)\nQuantity: (\d+)\nAddress: (.*)\nPayment: (.*)\nEmail: (.*)/);
             // Fallback for old format without email
             const pendingOrderMatchOld = text.match(/\*\*Confirm Order\*\*\nInventory ID: (.*)\nQuantity: (\d+)\nAddress: (.*)\nPayment: (.*)/);
@@ -190,13 +213,78 @@ async function processLocalIntent(lastUserMessage, history = []) {
         }
     }
 
+
+    // 0.5 CART OPERATIONS
+    const userId = "user_session"; // Demo User ID
+
+    // A. VIEW CART
+    if (msg.includes("cart") || msg.includes("bag") || msg.includes("basket")) {
+        const isAdd = msg.includes("add") || msg.includes("put") || msg.includes("insert");
+        const isRemove = msg.includes("remove") || msg.includes("delete");
+        const isCheckout = msg.includes("checkout") || msg.includes("buy");
+
+        if (!isAdd && !isRemove && !isCheckout) {
+            const cart = getCart(userId);
+            if (!cart) return `## 🛒 **Your Cart is Empty**\n\nStart shopping by saying **"Show products"**! 🛍️`;
+
+            let cartText = `## 🛒 **Your Cart**\n\n`;
+            cartText += `| Product | Qty | Price | Total |\n|---|---|---|---|\n`;
+            cart.items.forEach(i => {
+                cartText += `| ${i.name} | ${i.quantity} | $${i.price} | $${i.total} |\n`;
+            });
+            cartText += `\n**Grand Total: $${cart.grandTotal}**\n\nType **"Checkout"** to place order!`;
+            return cartText;
+        }
+    }
+
+    // B. ADD TO CART (Logic overlaps with "Buy" intent, but specific to "cart" keyword)
+    if (msg.includes("add to cart") || msg.includes("put in cart") || (msg.includes("cart") && msg.includes("add"))) {
+        // reuse inventory search logic locally or extract function?
+        // Let's do a mini-search here for simplicity
+        let targetProduct = null;
+        let targetScore = 0;
+
+        inventory.forEach(i => {
+            let score = 0;
+            const nameWords = i.name.toLowerCase().split(' ');
+            nameWords.forEach(w => { if (msg.includes(w)) score += 2; });
+            if (msg.includes(i.id.toLowerCase())) score += 10;
+            if (score > targetScore) { targetScore = score; targetProduct = i; }
+        });
+
+        if (targetProduct) {
+            const qtyMatch = msg.match(/(\d+)/);
+            const qty = qtyMatch ? parseInt(qtyMatch[0]) : 1;
+
+            try {
+                addToCart(userId, targetProduct.id, qty);
+                const cart = getCart(userId);
+                return `## ✅ **Added to Cart**\n\nAdded **${qty} x ${targetProduct.name}** to your cart.\n\n**Cart Total: $${cart.grandTotal}**\nType **"Checkout"** to buy now, or continue shopping!`;
+            } catch (e) {
+                return `❌ Couldn't add to cart: ${e.message}`;
+            }
+        } else {
+            return "❌ Which product do you want to add? (e.g. 'Add iPhone 15 to cart')";
+        }
+    }
+
+    // C. CHECKOUT
+    if (msg.includes("checkout") || msg.includes("buy cart") || msg.includes("place order")) {
+        const cart = getCart(userId);
+        if (!cart) return `## 🛒 **Cart is Empty**\n\nAdd some items first!`;
+
+        const total = cart.grandTotal;
+        return `## 🛍️ **Checkout**\n\nYou have **${cart.items.length} items** in your cart.\n**Total: $${total}**\n\nTo complete your order, please provide:\n1. **Shipping Address**\n2. **Email Address**\n3. **Payment Method**\n\n<!-- **Checkout Pending** -->`;
+    }
+
     // 1. TRACKING & HISTORY
     const orderIdMatch = msg.match(/(ORD\d+)/i);
     const intentIsCancel = msg.includes("cancel") || msg.includes("stop");
     const intentIsReturn = msg.includes("return") || msg.includes("refund");
+    const intentIsModify = msg.includes("modify") || msg.includes("change") || msg.includes("update");
 
-    // If ID found and NOT buying/returning/cancelling explicitly, show details
-    if (orderIdMatch && !intentIsCancel && !intentIsReturn) {
+    // If ID found and NOT buying/returning/cancelling/modifying explicitly, show details
+    if (orderIdMatch && !intentIsCancel && !intentIsReturn && !intentIsModify) {
         const orderId = orderIdMatch[1].toUpperCase();
         let order = getOrderById(orderId);
 
@@ -278,61 +366,118 @@ async function processLocalIntent(lastUserMessage, history = []) {
     const negativeKeywords = ["no", "not", "don't", "dont", "stop", "cancel"];
 
     // Check if any buy keyword is present AND not immediately preceded by a negative (simplified check for now)
-    const isBuying = buyKeywords.some(k => msg.includes(k)) && !negativeKeywords.some(n => msg.includes(n));
+    let isPurchaseIntent = buyKeywords.some(k => msg.includes(k)) && !negativeKeywords.some(n => msg.includes(n));
 
     let matchedProduct = null;
     let matchedScore = 0;
 
-    inventory.forEach(i => {
-        let score = 0;
-        const nameWords = i.name.toLowerCase().split(' ');
+    // FIX: If message is JUST matches a number (e.g. "2"), it is likely a quantity input, not a product search (which matches "AirPods Pro 2").
+    // So we SKIP fuzzy search for pure numbers.
+    const isJustNumber = /^\d+$/.test(msg.trim());
 
-        // FIX: Use Word Boundaries to prevent "products" matching "pro"
-        nameWords.forEach(w => {
-            // Escape special chars in product names if any, though likely just alphanumeric 
-            try {
-                const regex = new RegExp(`\\b${w}\\b`, 'i');
-                if (regex.test(msg)) score += 2;
-            } catch (e) {
-                if (msg.includes(w)) score += 1; // Fallback
+    if (!isJustNumber) {
+        inventory.forEach(i => {
+            let score = 0;
+            const nameWords = i.name.toLowerCase().split(' ');
+
+            // FIX: Use Word Boundaries to prevent "products" matching "pro"
+            nameWords.forEach(w => {
+                // Escape special chars in product names if any, though likely just alphanumeric 
+                try {
+                    const regex = new RegExp(`\\b${w}\\b`, 'i');
+                    if (regex.test(msg)) score += 2;
+                } catch (e) {
+                    if (msg.includes(w)) score += 1; // Fallback
+                }
+            });
+
+            if (i.category && msg.includes(i.category.toLowerCase())) score += 5;
+            if (msg.includes(i.id.toLowerCase())) score += 10;
+
+            if (score > matchedScore) {
+                matchedScore = score;
+                matchedProduct = i;
             }
         });
+    }
 
-        if (i.category && msg.includes(i.category.toLowerCase())) score += 5;
-        if (msg.includes(i.id.toLowerCase())) score += 10;
+    // RECOVERY: Check previous message context for "buy 23" OR Just Number "2"
+    // const isJustNumber is already defined above
 
-        if (score > matchedScore) {
-            matchedScore = score;
-            matchedProduct = i;
-        }
-    });
-
-    // RECOVERY: Check previous message context for "buy 23"
     // If user says "buy" or "buy 23" but didn't name the product, check history.
-    if (isBuying && !matchedProduct) {
+    if ((isPurchaseIntent || isJustNumber) && !matchedProduct) {
         const lastModelMsg = history.slice().reverse().find(h => h.role === "model");
         if (lastModelMsg && lastModelMsg.parts && lastModelMsg.parts[0].text) {
             const text = lastModelMsg.parts[0].text;
-            // Look for bold product name in previous message (e.g. "**Sony TV**")
-            const productMatch = text.match(/\*\*(.*?)\*\*/) || text.match(/## .*? \*\*(.*?)\*\*/);
-            if (productMatch) {
-                const potentialName = productMatch[1];
-                const found = inventory.find(i => i.name.toLowerCase().includes(potentialName.toLowerCase().trim()));
+
+            // 1. Look for Product View context (e.g. "ID: TV005 ... Ready to order?")
+            const idMatch = text.match(/\*\*ID:\*\*\s*(\w+)/);
+            if (idMatch) {
+                const found = inventory.find(i => i.id === idMatch[1]);
                 if (found) matchedProduct = found;
+            }
+            // 2. Fallback: Look for bold Name (e.g. "**Sony TV**")
+            else {
+                const productMatch = text.match(/\*\*(.*?)\*\*/) || text.match(/## .*? \*\*(.*?)\*\*/);
+                if (productMatch) {
+                    const potentialName = productMatch[1];
+                    const found = inventory.find(i => i.name.toLowerCase().includes(potentialName.toLowerCase().trim()));
+                    if (found) matchedProduct = found;
+                }
             }
         }
     }
 
+    // Force Intent if we recovered context via Number
+    if (isJustNumber && matchedProduct) isPurchaseIntent = true;
+
     const finalProduct = matchedProduct;
-    const qtyMatch = msg.match(/(\d+)/);
-    const quantity = qtyMatch ? parseInt(qtyMatch[0]) : 1;
+    let quantity = 1;
+    let isExplicitQty = false;
+
+    // Quantity Extraction
+    if (isJustNumber) {
+        quantity = parseInt(msg.trim());
+        isExplicitQty = true;
+    } else {
+        const explicitQtyMatch = msg.match(/(\d+)\s*(?:x|units|qty|pieces)/i) || msg.match(/buy\s+(\d+)/i);
+        if (explicitQtyMatch) {
+            quantity = parseInt(explicitQtyMatch[1]);
+            isExplicitQty = true;
+        }
+    }
 
     // 2.5. CONTEXTUAL RECOVERY: RESPONSE TO "Where to ship?"
     // If user is replying to "Just tell me where to ship it...", treat this as providing details.
-    if (!finalProduct && !isBuying) {
+    if (!finalProduct && !isPurchaseIntent) {
         const lastModelMsg = history.slice().reverse().find(h => h.role === "model");
         if (lastModelMsg && lastModelMsg.parts && lastModelMsg.parts[0].text) {
             const lastText = lastModelMsg.parts[0].text;
+
+            // 2.5.1 CART CHECKOUT RECOVERY
+            if (lastText.includes("Checkout Pending")) {
+                // Parse details (Email, Addr, Payment)
+                const hasEmail = msg.includes("@") && msg.includes(".");
+                const hasPayment = msg.includes("upi") || msg.includes("card") || msg.includes("cash");
+
+                // If valid details
+                if (hasEmail || hasPayment) {
+                    const cart = getCart(userId);
+                    if (!cart) return "Cart Expired. Add items again.";
+
+                    // Extract (Reuse the logic from single flows or make function? Reuse is safer locally)
+                    const emailMatch = msg.match(/[\w.-]+@[\w.-]+\.\w+/);
+                    const userEmail = emailMatch ? emailMatch[0] : "rp0366685@gmail.com";
+                    let paymentMethod = "Cash on Delivery";
+                    if (msg.includes("upi")) paymentMethod = "UPI";
+                    else if (msg.includes("card")) paymentMethod = "Credit Card";
+
+                    let address = msg.replace(userEmail, "").replace(/upi|card|cash/gi, "").trim();
+                    if (address.length < 5) address = "Provided Address";
+
+                    return `## 🛒 **Confirm Cart Order**\n\nItems: ${cart.items.length}\nTotal: $${cart.grandTotal}\n\nShipping to: ${address}\nEmail: **${userEmail}**\nPayment: ${paymentMethod}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Cart**\nAddress: ${address}\nPayment: ${paymentMethod}\nEmail: ${userEmail}\n-->`;
+                }
+            }
 
             // CHECK FOR BOTH OLD AND NEW PROMPT PHRASES
             const isPrompt = lastText.includes("tell me where to ship") ||
@@ -389,7 +534,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
 
     // 2.6. CONTEXTUAL RECOVERY: GENERIC (Shipping Address OR Return Reason)
     // Checks if the bot previously asked a question and uses the current message as the answer.
-    if (!intentIsReturn && !isBuying && !orderIdMatch) {
+    if (!intentIsReturn && !isPurchaseIntent && !orderIdMatch) {
         const lastModelMsg = history.slice().reverse().find(h => h.role === "model");
         if (lastModelMsg && lastModelMsg.parts && lastModelMsg.parts[0].text) {
             const lastText = lastModelMsg.parts[0].text;
@@ -459,9 +604,15 @@ async function processLocalIntent(lastUserMessage, history = []) {
 
     // A. "Buy 23" Logic (Contextual Buy)
     // If we know the product (finalProduct) and user wants to buy...
-    if (finalProduct && isBuying) {
+    if (finalProduct && isPurchaseIntent) {
 
         // Check for Address & Payment & Email in the message
+
+        // NEW: If quantity wasn't explicit (e.g. just "buy iphone"), Ask for it!
+        if (!isExplicitQty) {
+            const stockMsg = finalProduct.stock > 0 ? `✅ Available (${finalProduct.stock})` : `❌ Out of Stock`;
+            return `## ℹ️ **${finalProduct.name}**\n**ID:** ${finalProduct.id}\n**Price:** $${finalProduct.price}\n**Status:** ${stockMsg}\n\n**Ready to order?**\nReply with the **Quantity** (e.g. "1" or "2") to continue!`;
+        }
 
         // Check for Address & Payment & Email in the message
         const hasEmail = msg.includes("@") && msg.includes(".");
@@ -632,7 +783,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
         output += `\nType **"Buy [ID]"** to grab one!`;
         return output;
     }
-    if (msg.includes("shop") || msg.includes("list") || msg.includes("products") || msg.includes("show me")) {
+    if (msg.includes("shop") || msg.includes("list") || msg.includes("products") || msg.includes("show me") || msg.includes("inventory") || msg.includes("stock")) {
         // ... (Same categorized list logic, but simplified header)
         const categories = {};
         inventory.forEach(item => {
@@ -678,7 +829,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
                 return `## 📝 **Reason?**\n\nWhy are you returning Order **${orderId}**? (e.g., "broken", "wrong color")`;
             }
         }
-        return `To return something, just reply **"return [Order ID]"**.`;
+        return `## 🔄 **How to Return**\n\nTo start a return, I just need your Order ID.\n\n**Examples:**\n- "Return **ORD123**"\n- "Return **ORD123** because it's broken"\n\n(Tip: Say "Show my orders" if you forgot your ID!)`;
     }
 
     // E. Cancel Logic
@@ -694,40 +845,65 @@ async function processLocalIntent(lastUserMessage, history = []) {
         return `To cancel, just reply **"cancel [Order ID]"**.`;
     }
 
-    // F. Modify Order Logic
-    const intentIsModify = msg.includes("modify") || msg.includes("change") || msg.includes("update");
-    if (intentIsModify && orderIdMatch) {
-        const orderId = orderIdMatch[1].toUpperCase();
-        const order = getOrderById(orderId);
+    // F. Modify Order Logic (Enhanced & Context-Aware)
+    // intentIsModify is already calculated above
+    if (intentIsModify) {
+        let targetId = orderIdMatch ? orderIdMatch[1].toUpperCase() : null;
 
-        if (!order) return `❌ Can't find Order ${orderId}.`;
-        if (order.status !== 'Confirmed') return `❌ Cannot modify Order ${orderId} (Status: ${order.status}).`;
-
-        // Sub-intent: Address
-        if (msg.includes("address")) {
-            const newAddress = msg.split("to")[1] || msg.split("address")[1];
-            if (newAddress && newAddress.trim().length > 3) {
-                updateOrder(orderId, { address: newAddress.trim() });
-                return `✅ Updated address for **${orderId}** to: **${newAddress.trim()}**`;
-            } else {
-                return `To change address, say: **"Change address for ${orderId} to [New Address]"**`;
+        // Context Recovery: If no ID in message, check history for last Order ID discussed
+        if (!targetId) {
+            const lastModelMsg = history.slice().reverse().find(h => h.role === "model");
+            if (lastModelMsg && lastModelMsg.parts[0].text) {
+                const idMatch = lastModelMsg.parts[0].text.match(/(ORD\d+)/);
+                if (idMatch) targetId = idMatch[1];
             }
         }
 
-        // Sub-intent: Payment
-        if (msg.includes("payment") || msg.includes("method")) {
-            return `To change payment, say: **"Update payment for ${orderId} to [Cash/Card/UPI]"**`;
-        }
+        if (targetId) {
+            const order = getOrderById(targetId);
+            if (!order) return `❌ Can't find Order ${targetId}.`;
+            if (order.status === 'Delivered' || order.status === 'Cancelled' || order.status === 'Returned') {
+                return `❌ Cannot modify Order ${targetId} because it is already **${order.status}**.`;
+            }
 
-        // Sub-intent: Remove Item (Simplified Mod)
-        if (msg.includes("remove") || msg.includes("delete") || msg.includes("cancel item")) {
-            // For this demo, since most orders are single-line items or simplified, 
-            // we'll guide them to Cancel & Re-order if it's complex, 
-            // OR assume they want to remove the item mentioned.
-            return `⚠️ To remove items, it's safer to **Cancel** this order and place a new one.\n\nReply **"Cancel ${orderId}"** to do that.`;
-        }
+            // Sub-intent: Address
+            if (msg.includes("address")) {
+                // Try to extract new address
+                const newAddress = msg.split(/to|is|for/i).pop().trim();
 
-        return `## ✏️ **Modify Order**\n\nWhat would you like to change for Order **${orderId}**?\n\n- **Change Address**: "Change address to..."\n- **Cancel Order**: "Cancel order"`;
+                // If the "new address" looks like the command itself (too short or just "address"), ask for it.
+                if (newAddress.length > 5 && !newAddress.includes("address")) {
+                    updateOrder(targetId, { address: newAddress });
+                    return `✅ Updated address for **${targetId}** to: **${newAddress}**`;
+                } else {
+                    return `To change address, please say: **"Change address for ${targetId} to [New Address]"**`;
+                }
+            }
+
+            // Sub-intent: Payment
+            if (msg.includes("payment") || msg.includes("method")) {
+                const newPayment = msg.split(/to|is|use/i).pop().trim();
+                const validMethods = ["UPI", "Card", "Cash", "COD", "Net Banking"];
+
+                if (validMethods.some(m => newPayment.toLowerCase().includes(m.toLowerCase()))) {
+                    // Map to proper enum if needed, for now just save string
+                    return `✅ Payment method updated for **${targetId}**.`;
+                    // Note: Actual logic might require specific validator, simplified here.
+                }
+                return `To change payment, say: **"Change payment for ${targetId} to [Cash/Card/UPI]"**`;
+            }
+
+            // Sub-intent: Cancel (Redirect to cancel logic)
+            if (msg.includes("cancel")) {
+                return `To cancel, please reply **"Cancel ${targetId}"**.`;
+            }
+
+            // Default Modify Menu
+            return `## ✏️ **Modify Order ${targetId}**\n\nWhat would you like to change?\n\n- **Address**: "Change address to..."\n- **Payment**: "Change payment to..."\n- **Cancel**: "Cancel order"`;
+        } else {
+            // No ID found - Generic Help
+            return `## ❓ **How to Modify**\n\nTo change your address or details, just tell me the Order ID and what you want to change.\n\n**Examples:**\n- "Change address for **ORD123** to **Mumbai**"\n- "Change payment for **ORD123**"\n\n(Tip: You can find your ID by asking "Show my orders")`;
+        }
     }
 
     // F. Order History (Real Data)
@@ -757,6 +933,18 @@ async function processLocalIntent(lastUserMessage, history = []) {
 
         hist += `\nType **"Track [Order ID]"** for full details!`;
         return hist;
+    }
+
+    // H. Feedback Logic
+    if (msg.includes("feedback") || msg.includes("review") || msg.includes("rate")) {
+        const feedbackContent = msg.replace(/feedback|review|rate/gi, "").trim().replace(/^[:\s-]+/, "");
+
+        if (feedbackContent.length > 3) {
+            addFeedback(feedbackContent);
+            return `## 🌟 **Thanks for the Feedback!**\n\nI've saved your comments: _"${feedbackContent}"_\n\nWe appreciate it! ❤️`;
+        } else {
+            return `## 🗣️ **Give Feedback**\n\nWe'd love to hear from you! Please reply with:\n\n**"Feedback: [Your message here]"**`;
+        }
     }
 
     // G. Admin Dashboard

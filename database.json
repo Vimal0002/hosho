@@ -207,7 +207,7 @@
       "id": "TB003",
       "name": "iPad Air",
       "price": 599,
-      "stock": 90,
+      "stock": 35,
       "category": "Tablets"
     },
     {
@@ -242,7 +242,7 @@
       "id": "AU004",
       "name": "Bose QuietComfort 45",
       "price": 329,
-      "stock": 140,
+      "stock": 95,
       "category": "Audio & Headphones"
     },
     {
@@ -516,7 +516,7 @@
     {
       "id": "ORD1769262412869",
       "date": "2026-01-24T13:46:52.869Z",
-      "status": "Confirmed",
+      "status": "Out for Delivery 🚚",
       "email": "hpotpose62@gmail.com",
       "total": 14985,
       "items": [
@@ -564,7 +564,7 @@
     {
       "id": "ORD1769262989712",
       "date": "2026-01-24T13:56:29.712Z",
-      "status": "Confirmed",
+      "status": "Processing ⚙️",
       "email": "hpotpose62@gmail.com",
       "total": 600,
       "items": [
@@ -573,11 +573,75 @@
           "quantity": 1
         }
       ],
-      "address": "jablapur",
+      "address": "pune mumbai",
+      "customerName": "Guest User",
+      "paymentMethod": "Cash on Delivery"
+    },
+    {
+      "id": "ORD1769269663458",
+      "date": "2026-01-24T15:47:43.458Z",
+      "status": "Processing ⚙️",
+      "email": "rp0366685@gmail.com",
+      "total": 32945,
+      "items": [
+        {
+          "id": "TB003",
+          "quantity": 55
+        }
+      ],
+      "address": "verma hostel",
+      "customerName": "Guest User",
+      "paymentMethod": "Cash on Delivery"
+    },
+    {
+      "id": "ORD1769270244261",
+      "date": "2026-01-24T15:57:24.261Z",
+      "status": "Processing ⚙️",
+      "email": "rp0366685@gmail.com",
+      "total": 14805,
+      "items": [
+        {
+          "id": "AU004",
+          "quantity": 45
+        }
+      ],
+      "address": "ranjh adhartal jabalpur",
+      "customerName": "Guest User",
+      "paymentMethod": "Cash on Delivery"
+    },
+    {
+      "id": "ORD1769273099709",
+      "date": "2026-01-24T16:44:59.709Z",
+      "status": "Cancelled",
+      "email": "rp0366685@gmail.com",
+      "total": 498,
+      "items": [
+        {
+          "id": "AU001",
+          "quantity": 2
+        }
+      ],
+      "address": "mumbai",
       "customerName": "Guest User",
       "paymentMethod": "Cash on Delivery"
     }
   ],
   "carts": {},
-  "feedback": []
+  "feedback": [
+    {
+      "id": 1769272089297,
+      "text": "\"how do i give ?\"",
+      "date": "2026-01-24T16:28:09.297Z"
+    },
+    {
+      "id": 1769272134117,
+      "text": "\": i love the fast shipping!\"",
+      "date": "2026-01-24T16:28:54.117Z"
+    },
+    {
+      "id": 1769273303184,
+      "text": "give me some",
+      "date": "2026-01-24T16:48:23.184Z"
+    }
+  ]
 }
