@@ -812,7 +812,23 @@ async function processLocalIntent(lastUserMessage, history = []) {
             const orderId = orderIdMatch[1].toUpperCase();
             const order = getOrderById(orderId);
             if (!order) return `❌ Can't find Order ${orderId}.`;
-            if (order.status !== 'Delivered' && order.status !== 'Confirmed') return `❌ Order ${orderId} isn't eligible for return yet.`;
+            // D.1 Smart Status Check for RETURNS
+            const s = order.status.toLowerCase();
+
+            // If it's NOT delivered yet, you can't return it.
+            if (!s.includes('delivered')) {
+                if (s.includes('confirmed') || s.includes('processing')) {
+                    return `⚠️ Order **${orderId}** hasn't been shipped yet!\n\nUse **"Cancel ${orderId}"** instead of Return.`;
+                }
+                if (s.includes('shipped') || s.includes('out')) {
+                    return `⚠️ Order **${orderId}** is on the way!\n\nPlease wait for it to be delivered before returning.`;
+                }
+                // If Cancelled
+                if (s.includes('cancelled')) return `❌ This order is already Cancelled.`;
+            }
+
+            // Normal Return Logic continued...
+
 
             let reason = "";
             const reasonKeyMatch = msg.match(/(?:reason|because|for)\s+(.+)/i);
@@ -838,7 +854,13 @@ async function processLocalIntent(lastUserMessage, history = []) {
             const orderId = orderIdMatch[1].toUpperCase();
             const order = getOrderById(orderId);
             if (!order) return `❌ Can't find Order ${orderId}.`;
-            if (order.status === 'Delivered' || order.status === 'Cancelled') return `❌ Order ${orderId} cannot be cancelled (Status: ${order.status}).`;
+            if (order.status === 'Delivered') {
+                return `⚠️ Order **${orderId}** is already Delivered!\n\nUse **"Return ${orderId}"** if you want to send it back.`;
+            }
+            if (order.status === 'Shipped' || order.status === 'Out for Delivery') {
+                return `❌ Cannot cancel **${orderId}** because it's already **${order.status}**.\n\nYou can return it after delivery.`;
+            }
+            if (order.status === 'Cancelled') return `It's already cancelled!`;
 
             return `## 🛑 **Confirm Cancellation**\n\nAre you sure you want to cancel Order **${orderId}**?\n\nReply **"yes"** to confirm.\n<!--\n**Confirm Cancellation**\nOrder ID: ${orderId}\n-->`;
         }

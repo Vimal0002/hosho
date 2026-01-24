@@ -624,6 +624,22 @@
       "address": "mumbai",
       "customerName": "Guest User",
       "paymentMethod": "Cash on Delivery"
+    },
+    {
+      "id": "ORD1769278250225",
+      "date": "2026-01-24T18:10:50.225Z",
+      "status": "Cancelled",
+      "email": "rp0366685@gmail.com",
+      "total": 39501,
+      "items": [
+        {
+          "id": "SW001",
+          "quantity": 99
+        }
+      ],
+      "address": "bangalore",
+      "customerName": "Guest User",
+      "paymentMethod": "Cash on Delivery"
     }
   ],
   "carts": {},
