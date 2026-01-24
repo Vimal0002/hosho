@@ -1,0 +1,22 @@
+{
+  "name": "hosho",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "better-sqlite3": "^12.6.2",
+    "dotenv": "^17.2.3",
+    "lucide-react": "^0.562.0",
+    "next": "16.1.4",
+    "nodemailer": "^7.0.12",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  }
+}
