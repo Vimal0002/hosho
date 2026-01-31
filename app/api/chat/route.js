@@ -3,7 +3,15 @@ import { getInventory, createOrder, getOrderById, updateOrderStatus, cancelOrder
 import { sendOrderEmail } from '@/lib/email';
 import { NextResponse } from 'next/server';
 
-const apiKey = process.env.GEMINI_API_KEY;
+// Support key rotation if multiple are provided (comma/space separated)
+const getApiKey = () => {
+    const raw = process.env.GEMINI_API_KEY || "";
+    const keys = raw.split(/[, ]+/).map(k => k.trim()).filter(k => k.length > 20);
+    if (keys.length === 0) return undefined;
+    return keys[Math.floor(Math.random() * keys.length)];
+};
+
+const apiKey = getApiKey();
 
 const SYSTEM_INSTRUCTION = `You are ElectroMinds AI - a sweet, simple, and friendly shopping assistant. 🛍️
 
@@ -73,13 +81,106 @@ const toolDefinitions = [
     }
 ];
 
+// Helper to clean up voice input for IDs
+function normalizeVoiceInput(text) {
+    if (!text) return "";
+    let clean = text.toLowerCase();
+
+    // 1. Number words to digits
+    const numMap = {
+        'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
+        'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9'
+    };
+    Object.keys(numMap).forEach(word => {
+        clean = clean.replace(new RegExp(`\\b${word}\\b`, 'g'), numMap[word]);
+    });
+
+    // 2. Remove spaces between letters and numbers (e.g. "tv 001" -> "tv001")
+    clean = clean.replace(/([a-z])\s+(\d)/g, '$1$2');
+
+    // 3. Remove spaces between numbers (e.g. "0 0 1" -> "001")
+    clean = clean.replace(/(\d)\s+(\d)/g, '$1$2');
+
+    return clean;
+}
+
+// Helper to extract Order Details (Address, Email, Payment) from natural language
+// Handles voice typos like "case" instead of "Cash"
+function extractOrderDetails(text, defaultEmail = "rp0366685@gmail.com") {
+    const raw = text.toLowerCase();
+
+    // 1. Extract Email
+    const emailMatch = text.match(/[\w.-]+@[\w.-]+\.\w+/);
+    const email = emailMatch ? emailMatch[0] : (raw.includes("my email") ? defaultEmail : null);
+
+    // 2. Extract Payment
+    let payment = null;
+    if (raw.includes("upi") || raw.includes("google pay") || raw.includes("phonepe")) payment = "UPI";
+    else if (raw.includes("credit") || raw.includes("debit") || raw.includes("card")) payment = "Credit Card";
+    else if (raw.includes("net banking")) payment = "Net Banking";
+    // Voice typos for Cash
+    else if (raw.includes("cash") || raw.includes("case") || raw.includes("cod") || raw.includes("pay on delivery")) payment = "Cash on Delivery";
+
+    // 3. Extract Address (The hard part - stripping everything else)
+    let address = text;
+
+    // Remove Email
+    if (email) address = address.replace(email, "");
+
+    // Remove Payment keywords
+    if (payment) {
+        address = address.replace(/payment|method|via|using|by/gi, "");
+        if (payment === "UPI") address = address.replace(/upi|google pay|phonepe/gi, "");
+        if (payment === "Credit Card") address = address.replace(/credit|debit|card/gi, "");
+        if (payment === "Cash on Delivery") address = address.replace(/cash|case|cod|delivery/gi, "");
+    }
+
+    // Remove common prefixes/fillers
+    address = address.replace(/shipping|address|billing|deliver to|send to|at|my email is|and|is|please/gi, "")
+        .replace(/[.,\-]/g, " ") // Remove punctuation
+        .replace(/\s+/g, " ") // Collapse spaces
+        .trim();
+
+    // Heuristic: If address is too short, it's probably noise
+    if (address.length < 5) address = null;
+
+    return {
+        email: email || (address && payment ? defaultEmail : null), // Default email if other details present
+        payment: payment,
+        address: address
+    };
+}
+
 // Smart Local Intent Engine (Hybrid Mode)
 async function processLocalIntent(lastUserMessage, history = []) {
-    const msg = lastUserMessage.toLowerCase();
+    // Normalize voice inputs (e.g. "TV zero zero one" -> "tv001")
+    const msg = normalizeVoiceInput(lastUserMessage);
     const inventory = getInventory();
 
+    // HELPER: Extract Order ID safely (Handles "ORD123", "order123", "123" with context)
+    const extractOrderId = (text) => {
+        // 1. Direct ORD match (e.g. ord123)
+        const directMatch = text.match(/ord(\d+)/i);
+        if (directMatch) return `ORD${directMatch[1]}`;
+
+        // 2. "Order <num>" or "id <num>" (e.g. order123 - collapsed by normalizer)
+        const keywordMatch = text.match(/(?:order|id|track|return|cancel)(\d+)/i);
+        if (keywordMatch) return `ORD${keywordMatch[1]}`;
+
+        // 3. Fallback: If just a number like "1706..." and text implies looking for an order
+        // This is risky for "buy 2", so we use strict context checks later.
+        return null;
+    };
+
+    const extractedId = extractOrderId(msg);
+    let orderIdMatch = extractedId ? [extractedId, extractedId] : null; // Mock match array format
+
     // 0. CHECK FOR CONFIRMATION (User said "Yes" to a pending order OR return)
-    if (msg.includes("yes") || msg.includes("confirm") || msg.includes("ok") || msg.includes("place it") || msg.includes("sure") || msg.includes("do it")) {
+    // Expanded for Voice: "Go ahead", "Proceed", "Correct", "Right"
+    if (msg.includes("yes") || msg.includes("confirm") || msg.includes("ok") ||
+        msg.includes("place it") || msg.includes("sure") || msg.includes("do it") ||
+        msg.includes("go ahead") || msg.includes("proceed") || msg.includes("right") ||
+        msg.includes("correct") || msg.includes("looks good")) {
         const lastModelMsg = history.slice().reverse().find(h => h.role === "model");
         if (lastModelMsg && lastModelMsg.parts && lastModelMsg.parts[0].text) {
             const text = lastModelMsg.parts[0].text;
@@ -278,7 +379,6 @@ async function processLocalIntent(lastUserMessage, history = []) {
     }
 
     // 1. TRACKING & HISTORY
-    const orderIdMatch = msg.match(/(ORD\d+)/i);
     const intentIsCancel = msg.includes("cancel") || msg.includes("stop");
     const intentIsReturn = msg.includes("return") || msg.includes("refund");
     const intentIsModify = msg.includes("modify") || msg.includes("change") || msg.includes("update");
@@ -373,7 +473,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
 
     // FIX: If message is JUST matches a number (e.g. "2"), it is likely a quantity input, not a product search (which matches "AirPods Pro 2").
     // So we SKIP fuzzy search for pure numbers.
-    const isJustNumber = /^\d+$/.test(msg.trim());
+    const isJustNumber = /^\d+[.]?$/.test(msg.trim());
 
     if (!isJustNumber) {
         inventory.forEach(i => {
@@ -406,15 +506,24 @@ async function processLocalIntent(lastUserMessage, history = []) {
 
     // If user says "buy" or "buy 23" but didn't name the product, check history.
     if ((isPurchaseIntent || isJustNumber) && !matchedProduct) {
-        const lastModelMsg = history.slice().reverse().find(h => h.role === "model");
-        if (lastModelMsg && lastModelMsg.parts && lastModelMsg.parts[0].text) {
-            const text = lastModelMsg.parts[0].text;
+        // Scan LAST 3 Model Messages for context (in case of intervening error messages)
+        const reversedHistory = history.slice().reverse();
+        const modelMsgs = reversedHistory.filter(h => h.role === "model").slice(0, 3);
+
+        for (const msg of modelMsgs) {
+            if (!msg.parts || !msg.parts[0].text) continue;
+            const text = msg.parts[0].text;
 
             // 1. Look for Product View context (e.g. "ID: TV005 ... Ready to order?")
-            const idMatch = text.match(/\*\*ID:\*\*\s*(\w+)/);
+            // Matches: "**ID:** TV001", "ID: TV001", "ID:TV001"
+            const idMatch = text.match(/(?:\*\*ID:\*\+|ID:)\s*([a-zA-Z0-9]+)/i);
+
             if (idMatch) {
-                const found = inventory.find(i => i.id === idMatch[1]);
-                if (found) matchedProduct = found;
+                const found = inventory.find(i => i.id.toLowerCase() === idMatch[1].toLowerCase());
+                if (found) {
+                    matchedProduct = found;
+                    break; // Found it, stop scanning
+                }
             }
             // 2. Fallback: Look for bold Name (e.g. "**Sony TV**")
             else {
@@ -422,7 +531,10 @@ async function processLocalIntent(lastUserMessage, history = []) {
                 if (productMatch) {
                     const potentialName = productMatch[1];
                     const found = inventory.find(i => i.name.toLowerCase().includes(potentialName.toLowerCase().trim()));
-                    if (found) matchedProduct = found;
+                    if (found) {
+                        matchedProduct = found;
+                        break;
+                    }
                 }
             }
         }
@@ -456,24 +568,17 @@ async function processLocalIntent(lastUserMessage, history = []) {
 
             // 2.5.1 CART CHECKOUT RECOVERY
             if (lastText.includes("Checkout Pending")) {
-                // Parse details (Email, Addr, Payment)
-                const hasEmail = msg.includes("@") && msg.includes(".");
-                const hasPayment = msg.includes("upi") || msg.includes("card") || msg.includes("cash");
+                // Use NLP Helper
+                const details = extractOrderDetails(msg);
 
                 // If valid details
-                if (hasEmail || hasPayment) {
+                if (details.email || details.payment) {
                     const cart = getCart(userId);
                     if (!cart) return "Cart Expired. Add items again.";
 
-                    // Extract (Reuse the logic from single flows or make function? Reuse is safer locally)
-                    const emailMatch = msg.match(/[\w.-]+@[\w.-]+\.\w+/);
-                    const userEmail = emailMatch ? emailMatch[0] : "rp0366685@gmail.com";
-                    let paymentMethod = "Cash on Delivery";
-                    if (msg.includes("upi")) paymentMethod = "UPI";
-                    else if (msg.includes("card")) paymentMethod = "Credit Card";
-
-                    let address = msg.replace(userEmail, "").replace(/upi|card|cash/gi, "").trim();
-                    if (address.length < 5) address = "Provided Address";
+                    let address = details.address || "Provided Address";
+                    let paymentMethod = details.payment || "Cash on Delivery";
+                    let userEmail = details.email || "rp0366685@gmail.com";
 
                     return `## 🛒 **Confirm Cart Order**\n\nItems: ${cart.items.length}\nTotal: $${cart.grandTotal}\n\nShipping to: ${address}\nEmail: **${userEmail}**\nPayment: ${paymentMethod}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Cart**\nAddress: ${address}\nPayment: ${paymentMethod}\nEmail: ${userEmail}\n-->`;
                 }
@@ -485,43 +590,20 @@ async function processLocalIntent(lastUserMessage, history = []) {
                 lastText.includes("To complete your order, please provide");
 
             if (isPrompt) {
-                // Formatting is: "**2 x iPhone 15**" or similar or "You want **1 x Sony TV**"
                 const productMatch = lastText.match(/\*\*(\d+) x (.*?)\*\*/);
 
                 if (productMatch) {
                     const recoveredQty = parseInt(productMatch[1]);
                     const recoveredName = productMatch[2];
-                    const found = inventory.find(i => i.name === recoveredName); // Exact match from generated string
+                    const found = inventory.find(i => i.name === recoveredName);
 
                     if (found) {
-                        // FORCE BUY FLOW with recovered details
-                        // We set 'isBuying' to true effectively by handling it here
+                        // Use NLP Helper
+                        const details = extractOrderDetails(msg);
 
-                        // Check for Address & Payment & Email in the message
-                        const hasEmail = msg.includes("@") && msg.includes(".");
-                        const hasPayment = msg.includes("upi") || msg.includes("card") || msg.includes("cash") || msg.includes("pay");
-
-                        // Extract Email
-                        const emailMatch = msg.match(/[\w.-]+@[\w.-]+\.\w+/);
-                        const userEmail = emailMatch ? emailMatch[0] : "rp0366685@gmail.com";
-
-                        let paymentMethod = "Cash on Delivery";
-                        if (msg.includes("upi")) paymentMethod = "UPI";
-                        else if (msg.includes("credit")) paymentMethod = "Credit Card";
-                        else if (msg.includes("debit")) paymentMethod = "Debit Card";
-                        else if (msg.includes("net")) paymentMethod = "Net Banking";
-                        else if (msg.includes("cash")) paymentMethod = "Cash on Delivery";
-
-                        // Address Logic (Same as main block)
-                        let address = "Provided Address";
-                        const cleanMsg = msg.replace(userEmail, "").replace(/upi|credit|debit|card|cash|net banking/gi, "").trim();
-
-                        const addrIndex = msg.indexOf("address");
-                        if (addrIndex !== -1) {
-                            address = msg.substring(addrIndex + 7).split(/,|payment|via|email/)[0].trim().replace(/^[:\s]+/, '');
-                        } else {
-                            if (cleanMsg.length > 2) address = cleanMsg.replace(/[,.]/g, " ").trim();
-                        }
+                        let address = details.address || "Provided Address";
+                        let paymentMethod = details.payment || "Cash on Delivery";
+                        let userEmail = details.email || "rp0366685@gmail.com";
 
                         const total = found.price * recoveredQty;
 
@@ -615,47 +697,19 @@ async function processLocalIntent(lastUserMessage, history = []) {
         }
 
         // Check for Address & Payment & Email in the message
-        const hasEmail = msg.includes("@") && msg.includes(".");
-        const hasPayment = msg.includes("upi") || msg.includes("card") || msg.includes("cash") || msg.includes("pay");
-
-        // Heuristic: If we have payment AND email, assume the rest is address if reasonably long enough
-        // OR search for explicit address keywords
-        const isAddressExplicit = msg.includes("address") || msg.includes("deliver") || msg.includes("live at") || msg.includes("shipping") || msg.match(/at\s+\d+/);
-        const hasAddress = isAddressExplicit || (hasEmail && hasPayment && msg.length > 10);
+        // Use NLP Helper to see if details are provided in this "Buy" command
+        const details = extractOrderDetails(msg);
 
         // If MISSING key details, ask simply!
-        // We only block if we are really unsure. If we have email + payment, we proceed and try to extract address.
-        if ((!hasPayment || !hasEmail) && !hasAddress) { // Only block if address is also missing/unknown
+        if (!details.email && !details.payment && !details.address) {
             const total = finalProduct.price * quantity;
             return `You want **${quantity} x ${finalProduct.name}**? Great choice! ✨\n\nUnit Price: $${finalProduct.price}\nTotal: **$${total}**.\n\nTo complete your order, please provide:\n1. **Shipping Address**\n2. **Email Address** (for the receipt)\n3. **Payment Method** (Cash/Card/UPI)`;
         }
 
-        // If WE HAVE DETAILS, draft the order!
-        let paymentMethod = "Cash on Delivery";
-        if (msg.includes("upi")) paymentMethod = "UPI";
-        else if (msg.includes("credit")) paymentMethod = "Credit Card";
-        else if (msg.includes("debit")) paymentMethod = "Debit Card";
-        else if (msg.includes("net")) paymentMethod = "Net Banking";
-        else if (msg.includes("cash")) paymentMethod = "Cash on Delivery";
-
-        // Extract Email
-        const emailMatch = msg.match(/[\w.-]+@[\w.-]+\.\w+/);
-        const userEmail = emailMatch ? emailMatch[0] : "rp0366685@gmail.com";
-
-        // Simple address extraction
-        let address = "Provided Address";
-
-        // Remove known entities to isolate address
-        const cleanMsg = msg.replace(userEmail, "").replace(/upi|credit|debit|card|cash|net banking/gi, "").trim();
-
-        const addrIndex = msg.indexOf("address");
-        if (addrIndex !== -1) {
-            address = msg.substring(addrIndex + 7).split(/,|payment|via|email/)[0].trim().replace(/^[:\s]+/, '');
-        } else {
-            // Simplified Fallback
-            // If the cleaned message is long enough (even short city like "city"), assume it's the address
-            if (cleanMsg.length > 2) address = cleanMsg.replace(/[,.]/g, " ").trim();
-        }
+        // If WE HAVE DETAILS (even partial), draft the order!
+        let paymentMethod = details.payment || "Cash on Delivery";
+        let userEmail = details.email || "rp0366685@gmail.com";
+        let address = details.address || "Provided Address";
 
         const total = (finalProduct.price * quantity);
 
@@ -663,7 +717,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
     }
 
     // B. Just Showing Product Info
-    if (finalProduct && !isBuying) {
+    if (finalProduct && !isPurchaseIntent) {
         const stockMsg = finalProduct.stock > 0 ? `✅ Available (${finalProduct.stock})` : `❌ Out of Stock`;
         return `## ℹ️ **${finalProduct.name}**\n**ID:** ${finalProduct.id}\n**Price:** $${finalProduct.price}\n**Status:** ${stockMsg}\n\nWant it? Just type **"buy"** or **"buy 2"**!`;
     }
