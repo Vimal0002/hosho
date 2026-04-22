@@ -1,0 +1,68 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                                                                           ║
+║               🚀 DEPLOY YOUR PROJECT TO VERCEL IN 3 STEPS 🚀             ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+STEP 1: Login to Vercel
+═══════════════════════════════════════════════════════════════════════════
+
+Open terminal and run:
+    source ~/.nvm/nvm.sh
+    vercel login
+
+→ Press Enter
+→ Browser opens
+→ Login with GitHub
+→ Click Authorize
+→ Done!
+
+
+STEP 2: Deploy Your Project
+═══════════════════════════════════════════════════════════════════════════
+
+Run:
+    cd /home/bandya/Downloads/hosho
+    vercel
+
+Answer the questions:
+    ? Set up and deploy? → y
+    ? Which scope? → Your account name
+    ? Link to existing project? → n
+    ? Project name? → hosho
+    ? Directory? → ./
+    ? Override settings? → n
+
+→ Wait for deployment to complete (2-5 minutes)
+→ You'll get a URL like: https://hosho.vercel.app
+
+
+STEP 3: Add Your API Key
+═══════════════════════════════════════════════════════════════════════════
+
+Run:
+    vercel env add GEMINI_API_KEY
+
+→ Paste your API key (from https://aistudio.google.com)
+→ Then redeploy:
+    vercel --prod
+
+→ Done! Your site is LIVE! 🎉
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+YOUR SITE WILL BE LIVE AT:
+    https://hosho.vercel.app
+    
+(Replace "hosho" with whatever name you chose)
+
+═══════════════════════════════════════════════════════════════════════════
+
+TIPS:
+✓ Get GEMINI_API_KEY from https://aistudio.google.com
+✓ Vercel is free for personal projects
+✓ Auto-deploys when you push to GitHub
+✓ Takes 2-5 minutes to deploy
+
+═══════════════════════════════════════════════════════════════════════════

@@ -1,7 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getInventory, createOrder, getOrderById, updateOrderStatus, cancelOrder, addFeedback, getOrders, updateOrder, getCustomerOrders, addReturnRequest, addToCart, getCart, removeFromCart, checkoutCart } from '@/lib/data';
+import { getInventory, getProductById, createOrder, getOrderById, updateOrderStatus, cancelOrder, addFeedback, getOrders, updateOrder, getCustomerOrders, addReturnRequest, addToCart, getCart, removeFromCart, checkoutCart } from '@/lib/data';
 import { sendOrderEmail } from '@/lib/email';
 import { NextResponse } from 'next/server';
+import { PRODUCT_IMAGES } from '@/lib/product-images';
 
 // Support key rotation if multiple are provided (comma/space separated)
 const getApiKey = () => {
@@ -13,24 +14,41 @@ const getApiKey = () => {
 
 const apiKey = getApiKey();
 
+// INR to USD conversion rate (approximate)
+const INR_TO_USD_RATE = 0.012;
+
+function convertINRtoUSD(amountINR) {
+    const usd = amountINR * INR_TO_USD_RATE;
+    return usd.toFixed(2);
+}
+
 const SYSTEM_INSTRUCTION = `You are ElectroMinds AI - a sweet, simple, and friendly shopping assistant. 🛍️
 
 Current Inventory:
-${JSON.stringify(getInventory().map(i => `${i.name} (${i.id}): $${i.price}, ${i.stock} in stock`))}
+${JSON.stringify(getInventory().map(i => `${i.name} (${i.id}): ₹${i.price.toLocaleString('en-IN')}, ${i.stock} in stock`))}
 
 YOUR STYLE:
 - Speak simply and casually. No robot talk!
 - Be helpful and direct.
 - Use emojis to be friendly. ✨
 - If a user wants to buy, just help them naturally. Don't demand specific formats.
-- If they ask about a product, tell them the price and if it's available.
+- If they ask about a product, tell them the price (in ₹ INR) and if it's available.
+- ALWAYS show prices in Indian Rupees (₹). Never use $.
+- When showing products, include the image URL in markdown format.
+- You can convert INR to USD if the user asks. The current rate is approximately 1 INR = $${INR_TO_USD_RATE} USD.
+
+CONTEXT MEMORY RULES (CRITICAL):
+- You MUST remember and reference the FULL conversation history at all times.
+- If the user asks a follow-up question, ALWAYS refer to the previous messages for context.
+- When the user asks for "more options", "more", "show more", "top 5", "recommend more", "give me more", or any similar request WITHOUT specifying a new category, you MUST continue from the SAME product category that was discussed in the most recent messages. NEVER switch to a different category unless the user explicitly names a new one.
+- For example: if the last messages discussed Laptops and user says "give me more options", show MORE Laptops — NOT TVs or phones.
+- If the user says "show me top 5" after discussing a specific category, show 5 items from THAT SAME category.
 
 GOAL:
-- Help users shop, track orders, and return items easily.
+- Help users shop, track orders, return items, and convert currency easily.
 `;
 
-const genAI = new GoogleGenerativeAI(apiKey || 'MOCK_KEY');
-
+// genAI instantiated per request to randomize API keys
 const tools = {
     get_products: {
         description: "Get the list of available electronic products and their stock.",
@@ -152,6 +170,57 @@ function extractOrderDetails(text, defaultEmail = "rp0366685@gmail.com") {
 }
 
 // Smart Local Intent Engine (Hybrid Mode)
+// Helper: Extract the last-discussed product category from chat history
+function extractLastCategoryFromHistory(history, inventory) {
+    const reversedHistory = history.slice().reverse();
+    const modelMsgs = reversedHistory.filter(h => h.role === 'model').slice(0, 5);
+    const uniqueCategories = [...new Set(inventory.map(i => i.category))];
+
+    for (const m of modelMsgs) {
+        if (!m.parts || !m.parts[0]?.text) continue;
+        const text = m.parts[0].text;
+
+        // 1. Check for category headers like "### Laptops" or "**Laptops**"
+        for (const cat of uniqueCategories) {
+            if (text.includes(`### ${cat}`) || text.includes(`**${cat}**`)) {
+                return cat;
+            }
+        }
+
+        // 2. Check for product IDs mentioned — infer category from them
+        const idMatches = text.match(/\b([A-Z]{2,}\d{3})\b/g);
+        if (idMatches) {
+            for (const id of idMatches) {
+                const product = inventory.find(p => p.id === id);
+                if (product) return product.category;
+            }
+        }
+
+        // 3. Check for category names mentioned in text (case-insensitive)
+        for (const cat of uniqueCategories) {
+            const catLower = cat.toLowerCase();
+            if (text.toLowerCase().includes(catLower)) {
+                return cat;
+            }
+        }
+    }
+
+    // 4. Also check user messages for category mentions
+    const userMsgs = reversedHistory.filter(h => h.role === 'user').slice(0, 3);
+    for (const m of userMsgs) {
+        if (!m.parts || !m.parts[0]?.text) continue;
+        const text = m.parts[0].text.toLowerCase();
+        for (const cat of uniqueCategories) {
+            const catWords = cat.toLowerCase().split(' ');
+            if (catWords.some(w => text.includes(w))) {
+                return cat;
+            }
+        }
+    }
+
+    return null;
+}
+
 async function processLocalIntent(lastUserMessage, history = []) {
     // Normalize voice inputs (e.g. "TV zero zero one" -> "tv001")
     const msg = normalizeVoiceInput(lastUserMessage);
@@ -208,7 +277,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
                             paymentMethod: order.paymentMethod
                         });
 
-                        return `✅ Done! Order **${orderId}** is cancelled. We'll process your refund of $${order.total}.`;
+                        return `✅ Done! Order **${orderId}** is cancelled. We'll process your refund of ₹${order.total.toLocaleString('en-IN')}.`;
                     } catch (e) {
                         return `✅ Done! Order **${orderId}** is cancelled. Refund processing started.`;
                     }
@@ -263,7 +332,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
                     });
 
                     await sendOrderEmail(userEmail.trim(), order);
-                    return `🎉 **Woohoo! Cart Ordered!** 🛍️\n\nOrder ID: **${order.id}**\nTotal: $${order.total}\n\nI've sent the receipt to **${userEmail}**. Thanks for shopping multiple items! ✨`;
+                    return `🎉 **Woohoo! Cart Ordered!** 🛍️\n\nOrder ID: **${order.id}**\nTotal: ₹${order.total.toLocaleString('en-IN')}\n\nI've sent the receipt to **${userEmail}**. Thanks for shopping multiple items! ✨`;
 
                 } catch (e) {
                     return `❌ Checkout failed: ${e.message}`;
@@ -305,7 +374,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
                     console.log(`[Order Confirmed] Sending email to: ${userEmail}`);
                     await sendOrderEmail(userEmail, order);
 
-                    return `🎉 **Woohoo! Order Placed!** 🛍️\n\nOrder ID: **${order.id}**\nTotal: $${order.total}\n\nI've sent the receipt to **${userEmail}**. Thanks for shopping! ✨`;
+                    return `🎉 **Woohoo! Order Placed!** 🛍️\n\nOrder ID: **${order.id}**\nTotal: ₹${order.total.toLocaleString('en-IN')}\n\nI've sent the receipt to **${userEmail}**. Thanks for shopping! ✨`;
 
                 } catch (e) {
                     return `❌ Order failed: ${e.message}. Try again?`;
@@ -331,9 +400,9 @@ async function processLocalIntent(lastUserMessage, history = []) {
             let cartText = `## 🛒 **Your Cart**\n\n`;
             cartText += `| Product | Qty | Price | Total |\n|---|---|---|---|\n`;
             cart.items.forEach(i => {
-                cartText += `| ${i.name} | ${i.quantity} | $${i.price} | $${i.total} |\n`;
+                cartText += `| ${i.name} | ${i.quantity} | ₹${i.price.toLocaleString('en-IN')} | ₹${i.total.toLocaleString('en-IN')} |\n`;
             });
-            cartText += `\n**Grand Total: $${cart.grandTotal}**\n\nType **"Checkout"** to place order!`;
+            cartText += `\n**Grand Total: ₹${cart.grandTotal.toLocaleString('en-IN')}**\n\nType **"Checkout"** to place order!`;
             return cartText;
         }
     }
@@ -360,7 +429,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
             try {
                 addToCart(userId, targetProduct.id, qty);
                 const cart = getCart(userId);
-                return `## ✅ **Added to Cart**\n\nAdded **${qty} x ${targetProduct.name}** to your cart.\n\n**Cart Total: $${cart.grandTotal}**\nType **"Checkout"** to buy now, or continue shopping!`;
+                return `## ✅ **Added to Cart**\n\nAdded **${qty} x ${targetProduct.name}** to your cart.\n\n**Cart Total: ₹${cart.grandTotal.toLocaleString('en-IN')}**\nType **"Checkout"** to buy now, or continue shopping!`;
             } catch (e) {
                 return `❌ Couldn't add to cart: ${e.message}`;
             }
@@ -375,7 +444,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
         if (!cart) return `## 🛒 **Cart is Empty**\n\nAdd some items first!`;
 
         const total = cart.grandTotal;
-        return `## 🛍️ **Checkout**\n\nYou have **${cart.items.length} items** in your cart.\n**Total: $${total}**\n\nTo complete your order, please provide:\n1. **Shipping Address**\n2. **Email Address**\n3. **Payment Method**\n\n<!-- **Checkout Pending** -->`;
+        return `## 🛍️ **Checkout**\n\nYou have **${cart.items.length} items** in your cart.\n**Total: ₹${total.toLocaleString('en-IN')}**\n\nTo complete your order, please provide:\n1. **Shipping Address**\n2. **Email Address**\n3. **Payment Method**\n\n<!-- **Checkout Pending** -->`;
     }
 
     // 1. TRACKING & HISTORY
@@ -452,7 +521,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
                 trackText += `- **${item.quantity}x** ${name}\n`;
             });
 
-            trackText += `\n**Total Price:** $${order.total}\n`;
+            trackText += `\n**Total Price:** ₹${order.total.toLocaleString('en-IN')}\n`;
             trackText += `**Shipping to:** ${order.shippingAddress || order.address}\n`;
 
             return trackText;
@@ -580,7 +649,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
                     let paymentMethod = details.payment || "Cash on Delivery";
                     let userEmail = details.email || "rp0366685@gmail.com";
 
-                    return `## 🛒 **Confirm Cart Order**\n\nItems: ${cart.items.length}\nTotal: $${cart.grandTotal}\n\nShipping to: ${address}\nEmail: **${userEmail}**\nPayment: ${paymentMethod}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Cart**\nAddress: ${address}\nPayment: ${paymentMethod}\nEmail: ${userEmail}\n-->`;
+                    return `## 🛒 **Confirm Cart Order**\n\nItems: ${cart.items.length}\nTotal: ₹${cart.grandTotal.toLocaleString('en-IN')}\n\nShipping to: ${address}\nEmail: **${userEmail}**\nPayment: ${paymentMethod}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Cart**\nAddress: ${address}\nPayment: ${paymentMethod}\nEmail: ${userEmail}\n-->`;
                 }
             }
 
@@ -607,7 +676,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
 
                         const total = found.price * recoveredQty;
 
-                        return `## 🛒 **Ready to Order**\n\nGetting ${recoveredQty} x ${found.name}\nUnit Price: $${found.price}\n**Total: $${total}**\n\nShipping to: ${address}\nEmail: **${userEmail}**\nPayment: ${paymentMethod}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Order**\nInventory ID: ${found.id}\nQuantity: ${recoveredQty}\nAddress: ${address}\nPayment: ${paymentMethod}\nEmail: ${userEmail}\n-->`;
+                        return `## 🛒 **Ready to Order**\n\nGetting ${recoveredQty} x ${found.name}\nUnit Price: ₹${found.price.toLocaleString('en-IN')}\n**Total: ₹${total.toLocaleString('en-IN')}**\n\nShipping to: ${address}\nEmail: **${userEmail}**\nPayment: ${paymentMethod}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Order**\nInventory ID: ${found.id}\nQuantity: ${recoveredQty}\nAddress: ${address}\nPayment: ${paymentMethod}\nEmail: ${userEmail}\n-->`;
                     }
                 }
             }
@@ -677,7 +746,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
                         let updatedAddress = oldAddr.trim();
                         if (msg.length > 5 && !hasNewPayment && !newEmailMatch) updatedAddress = msg; // Assume correction is address
 
-                        return `## 🛒 **Updated Order**\n\nGetting ${updatedQty} x ${product.name}\nUnit Price: $${product.price}\n**Total: $${total}**\n\nShipping to: ${updatedAddress}\nEmail: **${updatedEmail}**\nPayment: ${updatedPayment}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Order**\nInventory ID: ${updatedId}\nQuantity: ${updatedQty}\nAddress: ${updatedAddress}\nPayment: ${updatedPayment}\nEmail: ${updatedEmail}\n-->`;
+                        return `## 🛒 **Updated Order**\n\nGetting ${updatedQty} x ${product.name}\nUnit Price: ₹${product.price.toLocaleString('en-IN')}\n**Total: ₹${total.toLocaleString('en-IN')}**\n\nShipping to: ${updatedAddress}\nEmail: **${updatedEmail}**\nPayment: ${updatedPayment}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Order**\nInventory ID: ${updatedId}\nQuantity: ${updatedQty}\nAddress: ${updatedAddress}\nPayment: ${updatedPayment}\nEmail: ${updatedEmail}\n-->`;
                     }
                 }
             }
@@ -693,7 +762,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
         // NEW: If quantity wasn't explicit (e.g. just "buy iphone"), Ask for it!
         if (!isExplicitQty) {
             const stockMsg = finalProduct.stock > 0 ? `✅ Available (${finalProduct.stock})` : `❌ Out of Stock`;
-            return `## ℹ️ **${finalProduct.name}**\n**ID:** ${finalProduct.id}\n**Price:** $${finalProduct.price}\n**Status:** ${stockMsg}\n\n**Ready to order?**\nReply with the **Quantity** (e.g. "1" or "2") to continue!`;
+            return `## ℹ️ **${finalProduct.name}**\n**ID:** ${finalProduct.id}\n**Price:** ₹${finalProduct.price.toLocaleString('en-IN')} (~$${convertINRtoUSD(finalProduct.price)})\n**Status:** ${stockMsg}\n\n**Ready to order?**\nReply with the **Quantity** (e.g. "1" or "2") to continue!`;
         }
 
         // Check for Address & Payment & Email in the message
@@ -703,7 +772,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
         // If MISSING key details, ask simply!
         if (!details.email && !details.payment && !details.address) {
             const total = finalProduct.price * quantity;
-            return `You want **${quantity} x ${finalProduct.name}**? Great choice! ✨\n\nUnit Price: $${finalProduct.price}\nTotal: **$${total}**.\n\nTo complete your order, please provide:\n1. **Shipping Address**\n2. **Email Address** (for the receipt)\n3. **Payment Method** (Cash/Card/UPI)`;
+            return `You want **${quantity} x ${finalProduct.name}**? Great choice! ✨\n\nUnit Price: ₹${finalProduct.price.toLocaleString('en-IN')}\nTotal: **₹${total.toLocaleString('en-IN')}** (~$${convertINRtoUSD(total)}).\n\nTo complete your order, please provide:\n1. **Shipping Address**\n2. **Email Address** (for the receipt)\n3. **Payment Method** (Cash/Card/UPI)`;
         }
 
         // If WE HAVE DETAILS (even partial), draft the order!
@@ -713,18 +782,72 @@ async function processLocalIntent(lastUserMessage, history = []) {
 
         const total = (finalProduct.price * quantity);
 
-        return `## 🛒 **Ready to Order**\n\nGetting ${quantity} x ${finalProduct.name}\nUnit Price: $${finalProduct.price}\n**Total: $${total}**\n\nShipping to: ${address}\nEmail: ${userEmail}\nPayment: ${paymentMethod}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Order**\nInventory ID: ${finalProduct.id}\nQuantity: ${quantity}\nAddress: ${address}\nPayment: ${paymentMethod}\nEmail: ${userEmail}\n-->`;
+        return `## 🛒 **Ready to Order**\n\nGetting ${quantity} x ${finalProduct.name}\nUnit Price: ₹${finalProduct.price.toLocaleString('en-IN')}\n**Total: ₹${total.toLocaleString('en-IN')}** (~$${convertINRtoUSD(total)})\n\nShipping to: ${address}\nEmail: ${userEmail}\nPayment: ${paymentMethod}\n\n**Reply "yes" to confirm!**\n<!--\n**Confirm Order**\nInventory ID: ${finalProduct.id}\nQuantity: ${quantity}\nAddress: ${address}\nPayment: ${paymentMethod}\nEmail: ${userEmail}\n-->`;
     }
 
     // B. Just Showing Product Info
     if (finalProduct && !isPurchaseIntent) {
         const stockMsg = finalProduct.stock > 0 ? `✅ Available (${finalProduct.stock})` : `❌ Out of Stock`;
-        return `## ℹ️ **${finalProduct.name}**\n**ID:** ${finalProduct.id}\n**Price:** $${finalProduct.price}\n**Status:** ${stockMsg}\n\nWant it? Just type **"buy"** or **"buy 2"**!`;
+        return `## ℹ️ **${finalProduct.name}**\n**ID:** ${finalProduct.id}\n**Price:** ₹${finalProduct.price.toLocaleString('en-IN')} (~$${convertINRtoUSD(finalProduct.price)})\n**Status:** ${stockMsg}\n\nWant it? Just type **"buy"** or **"buy 2"**!`;
     }
 
-    // C. General Shop Intent
+    // C. General Shop Intent (placeholder for old logic)
     if (msg.includes("shop") || msg.includes("list") || msg.includes("products") || msg.includes("show me")) {
         // ... (existing shop logic)
+    }
+
+    // C.4 "MORE OPTIONS" / "SHOW MORE" / "TOP N" — Context-aware continuation
+    const morePatterns = [
+        'more option', 'show more', 'give me more', 'any more',
+        'other option', 'more choice', 'more product', 'something else',
+        'what else', 'anything else', 'different option', 'more like',
+        'similar', 'alternatives', 'other models', 'recommend more',
+        'more of these', 'more of those', 'more like this', 'more like that'
+    ];
+    // Match "top 5", "top5", "best 5", "recommend 5", "recommend top 5", "show me top 5"
+    // Note: normalizeVoiceInput collapses "top 5" to "top5", so use \s* (zero or more spaces)
+    const topNMatch = msg.match(/\btop\s*(\d+)\b/i)
+        || msg.match(/\bbest\s*(\d+)\b/i)
+        || msg.match(/\brecommend\s*(\d+)\b/i)
+        || msg.match(/\brecommend\s+top\s*(\d+)\b/i)
+        || msg.match(/(?:show|give|list)\s+(?:me\s+)?(\d+)\s*(?:more|option|product|item|choice)/i);
+    const isMoreRequest = morePatterns.some(p => msg.includes(p)) || (topNMatch && !msg.includes('order'));
+
+    if (isMoreRequest) {
+        const lastCategory = extractLastCategoryFromHistory(history, inventory);
+
+        if (lastCategory) {
+            const count = topNMatch ? parseInt(topNMatch[1]) : 5;
+
+            // Get products from the SAME category, excluding any already shown
+            const shownIds = new Set();
+            const reversedHistory = history.slice().reverse();
+            const recentModelMsgs = reversedHistory.filter(h => h.role === 'model').slice(0, 3);
+            recentModelMsgs.forEach(m => {
+                if (!m.parts || !m.parts[0]?.text) return;
+                const ids = m.parts[0].text.match(/\b([A-Z]{2,}\d{3})\b/g);
+                if (ids) ids.forEach(id => shownIds.add(id));
+            });
+
+            let candidates = inventory.filter(i => i.category === lastCategory && i.stock > 0);
+            // Prefer unshown items first, then fill with shown ones if needed
+            const unshown = candidates.filter(i => !shownIds.has(i.id));
+            const shown = candidates.filter(i => shownIds.has(i.id));
+            let itemsToShow = [...unshown, ...shown].slice(0, count);
+
+            if (itemsToShow.length === 0) {
+                return `## 😅 **No More Options**\n\nLooks like we've shown you everything in **${lastCategory}**!\n\nWant to explore a different category? Try **"show products"** for the full catalog.`;
+            }
+
+            let output = `## 🔄 **More ${lastCategory} Options**\n\n`;
+            output += `| ID | Product | Price (₹) | Price ($) | Stock |\n|---|---|---|---|---|\n`;
+            itemsToShow.forEach(item => {
+                output += `| **${item.id}** | ${item.name} | ₹${item.price.toLocaleString('en-IN')} | ~$${convertINRtoUSD(item.price)} | ${item.stock} |\n`;
+            });
+            output += `\nShowing **${itemsToShow.length}** from **${lastCategory}**. Type **"Buy [ID]"** to order!`;
+            return output;
+        }
+        // If no category found in history, fall through to recommendations or AI
     }
 
     // C.5 PRODUCT RECOMMENDATIONS
@@ -830,14 +953,14 @@ async function processLocalIntent(lastUserMessage, history = []) {
         }
 
         let output = `## ✨ **${reason}**\n\n`;
-        output += `| ID | Product | Price |\n|---|---|---|\n`;
+        output += `| ID | Product | Price (₹) | Price ($) |\n|---|---|---|---|\n`;
         itemsToShow.forEach(item => {
-            output += `| **${item.id}** | ${item.name} | $${item.price} |\n`;
+            output += `| **${item.id}** | ${item.name} | ₹${item.price.toLocaleString('en-IN')} | ~$${convertINRtoUSD(item.price)} |\n`;
         });
         output += `\nType **"Buy [ID]"** to grab one!`;
         return output;
     }
-    if (msg.includes("shop") || msg.includes("list") || msg.includes("products") || msg.includes("show me") || msg.includes("inventory") || msg.includes("stock")) {
+    if (!isMoreRequest && (msg.includes("shop") || msg.includes("list") || msg.includes("products") || msg.includes("show me") || msg.includes("inventory") || msg.includes("stock"))) {
         // ... (Same categorized list logic, but simplified header)
         const categories = {};
         inventory.forEach(item => {
@@ -849,10 +972,10 @@ async function processLocalIntent(lastUserMessage, history = []) {
         Object.keys(categories).sort().forEach(category => {
             const items = categories[category];
             output += `### ${category}\n`;
-            output += `| ID | Product | Price | Stock |\n|---|---|---|---|\n`;
+            output += `| ID | Product | Price (₹) | Price ($) | Stock |\n|---|---|---|---|---|\n`;
             items.forEach(item => {
                 const stockDisplay = item.stock > 0 ? `${item.stock}` : `❌`;
-                output += `| **${item.id}** | ${item.name} | $${item.price} | ${stockDisplay} |\n`;
+                output += `| **${item.id}** | ${item.name} | ₹${item.price.toLocaleString('en-IN')} | ~$${convertINRtoUSD(item.price)} | ${stockDisplay} |\n`;
             });
             output += `\n`;
         });
@@ -1004,7 +1127,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
                 month: 'short', day: 'numeric',
                 timeZone: 'Asia/Kolkata'
             });
-            hist += `| **${o.id}** | ${dateStr} | $${o.total} | ${o.status} |\n`;
+            hist += `| **${o.id}** | ${dateStr} | ₹${o.total.toLocaleString('en-IN')} | ${o.status} |\n`;
         });
 
         hist += `\nType **"Track [Order ID]"** for full details!`;
@@ -1040,7 +1163,7 @@ async function processLocalIntent(lastUserMessage, history = []) {
         const lowStock = inventory.filter(i => i.stock < 20).map(i => `${i.name} (${i.stock})`);
 
         let report = `## 📊 **Admin Dashboard**\n\n`;
-        report += `**💰 Total Revenue:** $${totalRevenue}\n`;
+        report += `**💰 Total Revenue:** ₹${totalRevenue.toLocaleString('en-IN')} (~$${convertINRtoUSD(totalRevenue)})\n`;
         report += `**📦 Total Orders:** ${orders.length}\n\n`;
 
         report += `### 📈 **Order Status Breakdown**\n`;
@@ -1062,6 +1185,38 @@ async function processLocalIntent(lastUserMessage, history = []) {
         return report;
     }
 
+    // I. Currency Converter (INR to USD)
+    const convertMatch = msg.match(/convert\s+(?:₹|rs\.?|inr)?\s*(\d[\d,]*)\s*(?:₹|rs\.?|inr)?\s*(?:to\s+(?:usd|\$|dollars?))?/i)
+        || msg.match(/(?:₹|rs\.?|inr)\s*(\d[\d,]*)\s*(?:to|in)\s*(?:usd|\$|dollars?)/i)
+        || msg.match(/(\d[\d,]*)\s*(?:₹|rs\.?|inr)\s*(?:to|in)\s*(?:usd|\$|dollars?)/i)
+        || msg.match(/(?:how much is|what is|what's)\s*(?:₹|rs\.?|inr)?\s*(\d[\d,]*)\s*(?:₹|rs\.?|inr)?\s*(?:in|to)\s*(?:usd|\$|dollars?)/i);
+
+    if (convertMatch || msg.includes('convert') && (msg.includes('inr') || msg.includes('usd') || msg.includes('rupee') || msg.includes('dollar'))) {
+        let amount = null;
+        if (convertMatch) {
+            amount = parseFloat(convertMatch[1].replace(/,/g, ''));
+        } else {
+            const numMatch = msg.match(/(\d[\d,]*)/);
+            if (numMatch) amount = parseFloat(numMatch[1].replace(/,/g, ''));
+        }
+
+        if (amount && !isNaN(amount)) {
+            const usd = convertINRtoUSD(amount);
+            return `## 💱 **Currency Converter**\n\n` +
+                `| From (INR) | To (USD) |\n|---|---|\n` +
+                `| ₹${amount.toLocaleString('en-IN')} | $${usd} |\n\n` +
+                `**Exchange Rate:** 1 INR ≈ $${INR_TO_USD_RATE} USD\n\n` +
+                `> 💡 *This is an approximate conversion rate.*\n\n` +
+                `Need anything else? 😊`;
+        } else {
+            return `## 💱 **Currency Converter**\n\n` +
+                `Just tell me the amount! For example:\n` +
+                `- "Convert 5000 INR to USD"\n` +
+                `- "How much is ₹10,000 in dollars?"\n` +
+                `- "₹25000 to USD"`;
+        }
+    }
+
     return null;
 }
 
@@ -1079,8 +1234,9 @@ async function sendMessageWithRetry(chatSession, message, retries = 2) {
 }
 
 export async function POST(req) {
-    if (!apiKey) return NextResponse.json({ role: "model", parts: [{ text: "Service Unavailable (Missing API Key)" }] });
-
+    const currentApiKey = getApiKey();
+    if (!currentApiKey) return NextResponse.json({ role: "model", parts: [{ text: "Service Unavailable (Missing API Key)" }] });
+    const genAI = new GoogleGenerativeAI(currentApiKey || 'MOCK_KEY');
     try {
         const body = await req.json();
         const message = body.message;
@@ -1091,12 +1247,38 @@ export async function POST(req) {
             return NextResponse.json({ role: "model", parts: [{ text: localResponse }] });
         }
 
+        // Build clean history - keep last 20 messages for context
         let cleanHistory = history.map(h => ({ role: h.role, parts: [{ text: h.parts[0]?.text || "" }] }));
-        if (cleanHistory.length > 0 && cleanHistory[0].role === 'model') cleanHistory.shift();
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-        const chat = model.startChat({ history: cleanHistory, tools: toolDefinitions });
-        let result = await sendMessageWithRetry(chat, `${SYSTEM_INSTRUCTION}\n\nUser: ${message}`);
+        // Keep last 20 messages to avoid token overflow but maintain context
+        if (cleanHistory.length > 20) cleanHistory = cleanHistory.slice(-20);
+
+        // Fix alternation: Gemini requires user/model to alternate.
+        // Merge consecutive same-role messages and ensure it starts with 'user'.
+        const fixedHistory = [];
+        for (const msg of cleanHistory) {
+            if (fixedHistory.length > 0 && fixedHistory[fixedHistory.length - 1].role === msg.role) {
+                // Merge with previous message of same role
+                fixedHistory[fixedHistory.length - 1].parts[0].text += '\n' + msg.parts[0].text;
+            } else {
+                fixedHistory.push({ role: msg.role, parts: [{ text: msg.parts[0].text }] });
+            }
+        }
+        // Gemini requires history to start with 'user'
+        while (fixedHistory.length > 0 && fixedHistory[0].role === 'model') {
+            fixedHistory.shift();
+        }
+        // Gemini requires history to end with 'model' (not 'user', since we're about to send a user msg)
+        while (fixedHistory.length > 0 && fixedHistory[fixedHistory.length - 1].role === 'user') {
+            fixedHistory.pop();
+        }
+
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
+            systemInstruction: SYSTEM_INSTRUCTION
+        });
+        const chat = model.startChat({ history: fixedHistory, tools: toolDefinitions });
+        let result = await sendMessageWithRetry(chat, message);
 
         // ... (Tool handling same as before)
         let response = result.response;

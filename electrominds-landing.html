@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ElectroMinds - Next-Gen Electronics, Delivered Fast</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        /* CSS Custom Properties - Light Mode */
+        :root {
+            --color-primary: #6C63FF;
+            --color-primary-dark: #5A52D5;
+            --color-accent: #378ADD;
+            --color-accent-light: #5BA3E6;
+            --color-text-dark: #1a1a2e;
+            --color-text-light: #ffffff;
+            --color-bg-light: #f8f9fa;
+            --color-bg-white: #ffffff;
+            --color-border: #e0e0e0;
+            --color-shadow: rgba(0, 0, 0, 0.1);
+            
+            --font-family-body: 'Inter', sans-serif;
+            --font-family-heading: 'Poppins', sans-serif;
+            
+            --font-size-h1: 2.5rem;
+            --font-size-h2: 2rem;
+            --font-size-h3: 1.5rem;
+            --font-size-body: 1rem;
+            --font-size-small: 0.875rem;
+            
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --spacing-xxl: 3rem;
+            
+            --border-radius: 12px;
+            --transition: all 0.3s ease;
+        }
+
+        /* Dark Mode */
+        [data-theme="dark"] {
+            --color-primary: #7C73FF;
+            --color-text-dark: #ffffff;
+            --color-bg-light: #1a1a2e;
+            --color-bg-white: #252641;
+            --color-border: #404060;
+            --color-shadow: rgba(0, 0, 0, 0.3);
+        }
+
+        /* Reset & Base Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-family-body);
+            color: var(--color-text-dark);
+            background-color: var(--color-bg-white);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Typography */
+        h1, h2, h3, h4, h5, h6 {
+            font-family: var(--font-family-heading);
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        h1 {
+            font-size: var(--font-size-h1);
+        }
+
+        h2 {
+            font-size: var(--font-size-h2);
+        }
+
+        h3 {
+            font-size: var(--font-size-h3);
+        }
+
+        /* Common Classes */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 var(--spacing-xl);
+        }
+
+        .button {
+            display: inline-block;
+            padding: var(--spacing-md) var(--spacing-xl);
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+            color: var(--color-text-light);
+            text-decoration: none;
+            border-radius: var(--border-radius);
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: var(--transition);
+            font-size: var(--font-size-body);
+        }
+
+        .button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 16px rgba(108, 99, 255, 0.3);
+        }
+
+        /* ========== NAVBAR ========== */
+        .navbar {
+            position: sticky;
+            top: 0;
+            background-color: var(--color-bg-white);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 8px var(--color-shadow);
+            z-index: 1000;
+        }
+
+        .navbar-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--spacing-md) 0;
+        }
+
+        .navbar-logo {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            font-size: var(--font-size-h3);
+            font-weight: 700;
+            text-decoration: none;
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .navbar-logo svg {
+            width: 32px;
+            height: 32px;
+        }
+
+        .navbar-nav {
+            display: flex;
+            list-style: none;
+            gap: var(--spacing-xl);
+        }
+
+        .navbar-nav a {
+            text-decoration: none;
+            color: var(--color-text-dark);
+            font-weight: 600;
+            transition: var(--transition);
+        }
+
+        .navbar-nav a:hover {
+            color: var(--color-primary);
+        }
+
+        .navbar-actions {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-lg);
+        }
+
+        .cart-badge {
+            position: relative;
+            cursor: pointer;
+            font-size: 1.25rem;
+            transition: var(--transition);
+        }
+
+        .cart-badge:hover {
+            transform: scale(1.1);
+        }
+
+        .cart-count {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: var(--color-accent);
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: none;
+            font-size: 1.25rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .theme-toggle:hover {
+            transform: rotate(20deg);
+        }
+
+        .login-btn {
+            padding: var(--spacing-sm) var(--spacing-lg);
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(108, 99, 255, 0.3);
+        }
+
+        /* ========== HERO SECTION ========== */
+        .hero {
+            background: linear-gradient(135deg, var(--color-bg-light) 0%, var(--color-bg-white) 100%);
+            padding: var(--spacing-xxl) 0;
+        }
+
+        .hero-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--spacing-xxl);
+            align-items: center;
+        }
+
+        .hero-text h1 {
+            margin-bottom: var(--spacing-lg);
+            line-height: 1.2;
+        }
+
+        .hero-text p {
+            font-size: var(--font-size-h3);
+            color: var(--color-text-dark);
+            margin-bottom: var(--spacing-lg);
+            opacity: 0.8;
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .hero-image {
+            width: 100%;
+            height: 400px;
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+            border-radius: var(--border-radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 4rem;
+        }
+
+        /* ========== FEATURES STRIP ========== */
+        .features-strip {
+            background-color: var(--color-bg-light);
+            padding: var(--spacing-xxl) 0;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: var(--spacing-xl);
+        }
+
+        .feature-card {
+            background-color: var(--color-bg-white);
+            padding: var(--spacing-xl);
+            border-radius: var(--border-radius);
+            text-align: center;
+            box-shadow: 0 4px 12px var(--color-shadow);
+            border: 1px solid var(--color-border);
+            transition: var(--transition);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 24px var(--color-shadow);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .feature-card h3 {
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .feature-card p {
+            font-size: var(--font-size-small);
+            opacity: 0.8;
+        }
+
+        /* ========== FEATURED PRODUCTS GRID ========== */
+        .featured-products {
+            padding: var(--spacing-xxl) 0;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: var(--spacing-xxl);
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--spacing-xl);
+        }
+
+        .product-card {
+            background-color: var(--color-bg-white);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: 0 4px 12px var(--color-shadow);
+            border: 1px solid var(--color-border);
+            transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .product-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 12px 24px var(--color-shadow);
+        }
+
+        .product-image {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: white;
+        }
+
+        .product-info {
+            padding: var(--spacing-lg);
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .product-name {
+            font-weight: 700;
+            margin-bottom: var(--spacing-sm);
+            font-size: var(--font-size-h3);
+        }
+
+        .product-price {
+            font-size: 1.5rem;
+            color: var(--color-primary);
+            font-weight: 700;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .product-rating {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-lg);
+            font-size: var(--font-size-small);
+        }
+
+        .stars {
+            color: #FFC107;
+        }
+
+        .add-to-cart-btn {
+            width: 100%;
+            margin-top: auto;
+        }
+
+        /* ========== DEALS/OFFERS BANNER ========== */
+        .deals-banner {
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+            color: white;
+            padding: var(--spacing-xxl);
+            border-radius: var(--border-radius);
+            text-align: center;
+            margin: var(--spacing-xxl) 0;
+        }
+
+        .deals-banner h2 {
+            margin-bottom: var(--spacing-md);
+            font-size: var(--font-size-h2);
+        }
+
+        .discount-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: var(--spacing-lg);
+            opacity: 0.95;
+        }
+
+        /* ========== CUSTOMER REVIEWS ========== */
+        .customer-reviews {
+            background-color: var(--color-bg-light);
+            padding: var(--spacing-xxl) 0;
+        }
+
+        .reviews-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--spacing-xl);
+        }
+
+        .review-card {
+            background-color: var(--color-bg-white);
+            padding: var(--spacing-lg);
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 12px var(--color-shadow);
+            border: 1px solid var(--color-border);
+            transition: var(--transition);
+        }
+
+        .review-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px var(--color-shadow);
+        }
+
+        .review-stars {
+            color: #FFC107;
+            margin-bottom: var(--spacing-md);
+            font-size: 1.1rem;
+        }
+
+        .review-text {
+            font-size: var(--font-size-body);
+            margin-bottom: var(--spacing-md);
+            opacity: 0.8;
+            line-height: 1.6;
+        }
+
+        .reviewer-name {
+            font-weight: 700;
+            color: var(--color-primary);
+        }
+
+        /* ========== NEWSLETTER SIGNUP ========== */
+        .newsletter {
+            padding: var(--spacing-xxl) 0;
+            text-align: center;
+        }
+
+        .newsletter h2 {
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .newsletter-form {
+            display: flex;
+            gap: var(--spacing-md);
+            max-width: 500px;
+            margin: 0 auto;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .newsletter-input {
+            flex: 1;
+            min-width: 200px;
+            padding: var(--spacing-md);
+            border: 2px solid var(--color-border);
+            border-radius: var(--border-radius);
+            font-family: var(--font-family-body);
+            font-size: var(--font-size-body);
+            transition: var(--transition);
+            background-color: var(--color-bg-white);
+            color: var(--color-text-dark);
+        }
+
+        .newsletter-input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.1);
+        }
+
+        .newsletter-btn {
+            padding: var(--spacing-md) var(--spacing-xl);
+        }
+
+        /* ========== FOOTER ========== */
+        .footer {
+            background-color: var(--color-bg-white);
+            border-top: 1px solid var(--color-border);
+            padding: var(--spacing-xxl) 0;
+            color: var(--color-text-dark);
+        }
+
+        .footer-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: var(--spacing-xl);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .footer-section h4 {
+            margin-bottom: var(--spacing-md);
+            color: var(--color-primary);
+        }
+
+        .footer-section ul {
+            list-style: none;
+        }
+
+        .footer-section a {
+            display: block;
+            margin-bottom: var(--spacing-sm);
+            color: var(--color-text-dark);
+            text-decoration: none;
+            opacity: 0.8;
+            transition: var(--transition);
+        }
+
+        .footer-section a:hover {
+            opacity: 1;
+            color: var(--color-primary);
+        }
+
+        .social-icons {
+            display: flex;
+            gap: var(--spacing-md);
+            margin-top: var(--spacing-md);
+        }
+
+        .social-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background-color: var(--color-bg-light);
+            border-radius: 50%;
+            color: var(--color-primary);
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .social-icon:hover {
+            background-color: var(--color-primary);
+            color: white;
+            transform: translateY(-3px);
+        }
+
+        .footer-bottom {
+            border-top: 1px solid var(--color-border);
+            padding-top: var(--spacing-xl);
+            text-align: center;
+            opacity: 0.8;
+        }
+
+        /* ========== RESPONSIVE DESIGN ========== */
+        /* Tablet Breakpoint (768px) */
+        @media (max-width: 768px) {
+            :root {
+                --font-size-h1: 2rem;
+                --font-size-h2: 1.5rem;
+                --font-size-h3: 1.25rem;
+                --spacing-xxl: 2rem;
+                --spacing-xl: 1.5rem;
+            }
+
+            .navbar-nav {
+                display: none;
+            }
+
+            .hero-content {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-image {
+                height: 300px;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .products-grid {
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            }
+
+            .newsletter-form {
+                flex-direction: column;
+            }
+
+            .newsletter-input {
+                min-width: 100%;
+            }
+
+            .footer-content {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Mobile Breakpoint (480px) */
+        @media (max-width: 480px) {
+            :root {
+                --font-size-h1: 1.5rem;
+                --font-size-h2: 1.25rem;
+                --font-size-h3: 1rem;
+                --spacing-xxl: 1.5rem;
+                --spacing-xl: 1rem;
+            }
+
+            .container {
+                padding: 0 var(--spacing-md);
+            }
+
+            .navbar-logo {
+                font-size: 1.5rem;
+            }
+
+            .navbar-logo svg {
+                width: 24px;
+                height: 24px;
+            }
+
+            .navbar-actions {
+                gap: var(--spacing-md);
+            }
+
+            .hero-text p {
+                font-size: 1rem;
+            }
+
+            .hero-image {
+                height: 250px;
+                font-size: 3rem;
+            }
+
+            .feature-icon {
+                font-size: 2.5rem;
+            }
+
+            .products-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .product-card:hover {
+                transform: scale(1.02);
+            }
+
+            .deals-banner {
+                padding: var(--spacing-xl);
+            }
+
+            .deals-banner h2 {
+                font-size: 1.5rem;
+            }
+
+            .discount-text {
+                font-size: 1rem;
+            }
+
+            .reviews-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .newsletter-form {
+                gap: 0;
+            }
+
+            .newsletter-btn {
+                width: 100%;
+            }
+
+            .footer-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ========== NAVBAR ========== -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-content">
+                <a href="#" class="navbar-logo">
+                    <span>⚡</span>
+                    ElectroMinds
+                </a>
+                <ul class="navbar-nav">
+                    <li><a href="#home">Home</a></li>
+                    <li><a href="#gallery">Gallery</a></li>
+                    <li><a href="#chatbot">ChatBot</a></li>
+                    <li><a href="#search">Search</a></li>
+                </ul>
+                <div class="navbar-actions">
+                    <div class="cart-badge">
+                        🛒
+                        <span class="cart-count">3</span>
+                    </div>
+                    <button class="theme-toggle" id="themeToggle">🌙</button>
+                    <button class="login-btn">Login</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ========== HERO SECTION ========== -->
+    <section class="hero" id="home">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-text">
+                    <h1>Next-Gen Electronics, Delivered Fast</h1>
+                    <p>Discover cutting-edge technology at unbeatable prices</p>
+                    <div class="hero-cta">
+                        <button class="button">Shop Now</button>
+                        <button class="button" style="background: transparent; border: 2px solid var(--color-primary); color: var(--color-primary);">Learn More</button>
+                    </div>
+                </div>
+                <div class="hero-image">📱</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FEATURES STRIP ========== -->
+    <section class="features-strip">
+        <div class="container">
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">💰</div>
+                    <h3>Great Deals</h3>
+                    <p>Exclusive discounts and seasonal offers on all products</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📦</div>
+                    <h3>Free Shipping</h3>
+                    <p>Complimentary delivery on orders over $50</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⭐</div>
+                    <h3>Customer Reviews</h3>
+                    <p>Thousands of 5-star ratings from verified buyers</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🕐</div>
+                    <h3>24/7 Support</h3>
+                    <p>Round-the-clock customer service and live chat</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FEATURED PRODUCTS GRID ========== -->
+    <section class="featured-products">
+        <div class="container">
+            <div class="section-title">
+                <h2>Featured Products</h2>
+            </div>
+            <div class="products-grid">
+                <div class="product-card">
+                    <div class="product-image">🎧</div>
+                    <div class="product-info">
+                        <div class="product-name">Premium Headphones</div>
+                        <div class="product-price">$129.99</div>
+                        <div class="product-rating">
+                            <span class="stars">★★★★★</span>
+                            <span>(248 reviews)</span>
+                        </div>
+                        <button class="button add-to-cart-btn">Add to Cart</button>
+                    </div>
+                </div>
+
+                <div class="product-card">
+                    <div class="product-image">⌚</div>
+                    <div class="product-info">
+                        <div class="product-name">Smart Watch</div>
+                        <div class="product-price">$199.99</div>
+                        <div class="product-rating">
+                            <span class="stars">★★★★★</span>
+                            <span>(156 reviews)</span>
+                        </div>
+                        <button class="button add-to-cart-btn">Add to Cart</button>
+                    </div>
+                </div>
+
+                <div class="product-card">
+                    <div class="product-image">📷</div>
+                    <div class="product-info">
+                        <div class="product-name">Digital Camera</div>
+                        <div class="product-price">$349.99</div>
+                        <div class="product-rating">
+                            <span class="stars">★★★★☆</span>
+                            <span>(312 reviews)</span>
+                        </div>
+                        <button class="button add-to-cart-btn">Add to Cart</button>
+                    </div>
+                </div>
+
+                <div class="product-card">
+                    <div class="product-image">🔊</div>
+                    <div class="product-info">
+                        <div class="product-name">Bluetooth Speaker</div>
+                        <div class="product-price">$79.99</div>
+                        <div class="product-rating">
+                            <span class="stars">★★★★★</span>
+                            <span>(189 reviews)</span>
+                        </div>
+                        <button class="button add-to-cart-btn">Add to Cart</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== DEALS/OFFERS BANNER ========== -->
+    <section>
+        <div class="container">
+            <div class="deals-banner">
+                <h2>Limited Time Offer</h2>
+                <div class="discount-text">Get 30% OFF on selected electronics this week!</div>
+                <button class="button" style="background-color: rgba(255, 255, 255, 0.2); border: 2px solid white; color: white;">Claim Offer</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== CUSTOMER REVIEWS ========== -->
+    <section class="customer-reviews">
+        <div class="container">
+            <div class="section-title">
+                <h2>What Our Customers Say</h2>
+            </div>
+            <div class="reviews-grid">
+                <div class="review-card">
+                    <div class="review-stars">★★★★★</div>
+                    <div class="review-text">"Amazing product quality and super fast shipping! Highly recommend ElectroMinds to anyone looking for reliable electronics."</div>
+                    <div class="reviewer-name">Sarah Johnson</div>
+                </div>
+
+                <div class="review-card">
+                    <div class="review-stars">★★★★★</div>
+                    <div class="review-text">"Customer support was incredibly helpful. They answered all my questions and helped me choose the perfect product for my needs."</div>
+                    <div class="reviewer-name">Michael Chen</div>
+                </div>
+
+                <div class="review-card">
+                    <div class="review-stars">★★★★☆</div>
+                    <div class="review-text">"Great prices and excellent selection. The only thing is delivery took a bit longer than expected, but the product arrived in perfect condition."</div>
+                    <div class="reviewer-name">Emily Rodriguez</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== NEWSLETTER SIGNUP ========== -->
+    <section class="newsletter">
+        <div class="container">
+            <h2>Stay Updated</h2>
+            <p style="margin-bottom: var(--spacing-lg); opacity: 0.8;">Subscribe to get exclusive deals and new product launches</p>
+            <form class="newsletter-form" onsubmit="event.preventDefault(); alert('Thank you for subscribing!');">
+                <input type="email" class="newsletter-input" placeholder="Enter your email" required>
+                <button type="submit" class="button newsletter-btn">Subscribe</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- ========== FOOTER ========== -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>About ElectroMinds</h4>
+                    <p style="opacity: 0.8; margin-bottom: var(--spacing-md);">Your trusted destination for premium electronics and cutting-edge gadgets.</p>
+                    <div class="social-icons">
+                        <a href="#" class="social-icon">f</a>
+                        <a href="#" class="social-icon">𝕏</a>
+                        <a href="#" class="social-icon">in</a>
+                    </div>
+                </div>
+
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="#home">Home</a></li>
+                        <li><a href="#products">Products</a></li>
+                        <li><a href="#about">About Us</a></li>
+                        <li><a href="#contact">Contact</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h4>Customer Service</h4>
+                    <ul>
+                        <li><a href="#faq">FAQ</a></li>
+                        <li><a href="#shipping">Shipping Info</a></li>
+                        <li><a href="#returns">Returns & Exchanges</a></li>
+                        <li><a href="#warranty">Warranty</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="#privacy">Privacy Policy</a></li>
+                        <li><a href="#terms">Terms & Conditions</a></li>
+                        <li><a href="#cookies">Cookie Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>&copy; 2024 ElectroMinds. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Theme Toggle Script -->
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const htmlElement = document.documentElement;
+
+        // Check for saved theme preference or default to light mode
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        htmlElement.setAttribute('data-theme', currentTheme);
+        updateThemeToggleIcon(currentTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const theme = htmlElement.getAttribute('data-theme');
+            const newTheme = theme === 'light' ? 'dark' : 'light';
+            
+            htmlElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeToggleIcon(newTheme);
+        });
+
+        function updateThemeToggleIcon(theme) {
+            themeToggle.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+    </script>
+</body>
+</html>

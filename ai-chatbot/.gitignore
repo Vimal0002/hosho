@@ -1,0 +1,5 @@
+.env
+node_modules/
+chatbot.db
+*.log
+.DS_Store

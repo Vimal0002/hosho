@@ -1,27 +1,40 @@
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/app/context/AuthContext";
+import { ThemeProvider } from "@/app/providers";
+import ScrollToTop from "@/app/components/ScrollToTop";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 export const metadata = {
-  title: "ElectroMinds - AI Electronics Assistant",
-  description: "Omni-channel Intelligence for Electronics Shopping",
+  title: "ElectroMinds — AI Electronics Shopping Assistant",
+  description: "Shop electronics with our AI assistant",
 };
+
+import { CartProvider } from "@/app/context/CartContext";
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        {children}
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
+      <body className={inter.variable}>
+        <ThemeProvider>
+          <AuthProvider>
+            <CartProvider>
+              {children}
+              <ScrollToTop />
+            </CartProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
 }
+

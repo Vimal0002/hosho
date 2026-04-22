@@ -1,0 +1,401 @@
+/* ============================================================================
+   ANIMATION & POLISH STYLES
+   ============================================================================ */
+
+/* ============================================================================
+   PAGE TRANSITIONS
+   ============================================================================ */
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+main {
+  animation: pageEnter 0.4s ease-out;
+}
+
+/* ============================================================================
+   CARD ANIMATIONS
+   ============================================================================ */
+
+.card {
+  animation: slideUp 0.3s ease-out;
+}
+
+.product-card {
+  animation: slideUp 0.4s ease-out;
+}
+
+.category-card {
+  animation: slideUp 0.5s ease-out;
+}
+
+/* Staggered animation for grid items */
+.grid > :nth-child(1) { animation-delay: 0.05s; }
+.grid > :nth-child(2) { animation-delay: 0.1s; }
+.grid > :nth-child(3) { animation-delay: 0.15s; }
+.grid > :nth-child(4) { animation-delay: 0.2s; }
+.grid > :nth-child(5) { animation-delay: 0.25s; }
+.grid > :nth-child(6) { animation-delay: 0.3s; }
+.grid > :nth-child(7) { animation-delay: 0.35s; }
+.grid > :nth-child(8) { animation-delay: 0.4s; }
+.grid > :nth-child(n+9) { animation-delay: 0.45s; }
+
+/* ============================================================================
+   BUTTON ANIMATIONS
+   ============================================================================ */
+
+.btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn:active::before {
+  width: 300px;
+  height: 300px;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+/* ============================================================================
+   HOVER EFFECTS
+   ============================================================================ */
+
+.product-card:hover .product-image img {
+  transform: scale(1.1) rotate(1deg);
+}
+
+.category-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: var(--shadow-xl);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+}
+
+/* ============================================================================
+   FORM ANIMATIONS
+   ============================================================================ */
+
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+  transform: scale(1.01);
+}
+
+/* ============================================================================
+   HEADER EFFECTS
+   ============================================================================ */
+
+.hero-title {
+  animation: slideDown 0.5s ease-out;
+}
+
+.hero-subtitle {
+  animation: slideUp 0.6s ease-out 0.1s both;
+}
+
+.hero-actions {
+  animation: slideUp 0.7s ease-out 0.2s both;
+}
+
+/* ============================================================================
+   SECTION TITLE ANIMATIONS
+   ============================================================================ */
+
+.section-title {
+  animation: slideUp 0.4s ease-out;
+}
+
+.section-subtitle {
+  animation: slideUp 0.5s ease-out 0.1s both;
+}
+
+.section-content {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* ============================================================================
+   BADGE ANIMATIONS
+   ============================================================================ */
+
+.badge {
+  animation: slideDown 0.3s ease-out;
+}
+
+.product-badge {
+  animation: slideDown 0.4s ease-out 0.1s both;
+}
+
+/* ============================================================================
+   LOADING STATES
+   ============================================================================ */
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.loading {
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 25%,
+    var(--bg-primary) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* ============================================================================
+   SMOOTH TRANSITIONS FOR ALL INTERACTIVE ELEMENTS
+   ============================================================================ */
+
+a,
+button,
+input,
+textarea,
+select {
+  transition: all var(--duration-200) var(--timing-ease);
+}
+
+/* ============================================================================
+   TEXT REVEAL ANIMATIONS
+   ============================================================================ */
+
+@keyframes revealText {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+h1, h2, h3, h4, h5, h6 {
+  animation: revealText 0.4s ease-out;
+}
+
+p {
+  animation: revealText 0.5s ease-out 0.1s both;
+}
+
+/* ============================================================================
+   SCROLL ANIMATIONS (for intersectionObserver)
+   ============================================================================ */
+
+.scroll-fade {
+  opacity: 0;
+  animation: fadeIn 0.6s ease-out forwards;
+}
+
+.scroll-slide-up {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: slideUp 0.6s ease-out forwards;
+}
+
+.scroll-slide-down {
+  opacity: 0;
+  transform: translateY(-20px);
+  animation: slideDown 0.6s ease-out forwards;
+}
+
+/* ============================================================================
+   FOCUS ANIMATIONS
+   ============================================================================ */
+
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  animation: pulse 0.3s ease-out;
+}
+
+/* ============================================================================
+   TRANSFORM EFFECTS
+   ============================================================================ */
+
+.scale-hover:hover {
+  transform: scale(1.05);
+}
+
+.rotate-hover:hover {
+  transform: rotate(2deg);
+}
+
+.lift-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+}
+
+/* ============================================================================
+   SHADOW ANIMATIONS
+   ============================================================================ */
+
+.shadow-lift:hover {
+  box-shadow: var(--shadow-xl);
+}
+
+/* ============================================================================
+   GRADIENT ANIMATIONS
+   ============================================================================ */
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.gradient-animate {
+  background-size: 200% 200%;
+  animation: gradientShift 3s ease infinite;
+}
+
+/* ============================================================================
+   MICRO-INTERACTIONS
+   ============================================================================ */
+
+/* Form success animation */
+@keyframes successPulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.form-success {
+  animation: successPulse 0.4s ease-out;
+}
+
+/* Form error shake */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.form-error-input {
+  animation: shake 0.3s ease-out;
+  border-color: var(--color-error) !important;
+}
+
+/* ============================================================================
+   ACCESSIBILITY - RESPECT PREFERS-REDUCED-MOTION
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================================
+   DARK MODE ANIMATIONS
+   ============================================================================ */
+
+body[data-theme="dark"] .card {
+  transition: all var(--duration-300) var(--timing-ease);
+}
+
+body[data-theme="dark"] .card:hover {
+  background: linear-gradient(135deg, var(--color-primary), transparent);
+  background-attachment: fixed;
+}
+
+/* ============================================================================
+   TOOLTIP ANIMATIONS
+   ============================================================================ */
+
+@keyframes tooltipEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.tooltip {
+  animation: tooltipEnter 0.2s ease-out;
+}
+
+/* ============================================================================
+   MODAL ANIMATIONS
+   ============================================================================ */
+
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modal {
+  animation: modalEnter 0.3s ease-out;
+}
+
+/* ============================================================================
+   SMOOTH PAGE SCROLL
+   ============================================================================ */
+
+html {
+  scroll-behavior: smooth;
+}
